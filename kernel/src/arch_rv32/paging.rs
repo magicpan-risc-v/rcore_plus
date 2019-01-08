@@ -1,11 +1,11 @@
 use crate::consts::RECURSIVE_INDEX;
 // Depends on kernel
 use crate::memory::{active_table, alloc_frame, dealloc_frame};
-use riscv::addr::*;
-use riscv::asm::{sfence_vma, sfence_vma_all};
-use riscv::paging::{Mapper, PageTable as RvPageTable, PageTableEntry, PageTableFlags as EF, RecursivePageTable};
-use riscv::paging::{FrameAllocator, FrameDeallocator};
-use riscv::register::satp;
+use crate::riscv::addr::*;
+use crate::riscv::asm::{sfence_vma, sfence_vma_all};
+use crate::riscv::paging::{Mapper, PageTable as RvPageTable, PageTableEntry, PageTableFlags as EF, RecursivePageTable};
+use crate::riscv::paging::{FrameAllocator, FrameDeallocator};
+use crate::riscv::register::satp;
 use rcore_memory::paging::*;
 use log::*;
 #[cfg(target_arch = "riscv32")]
@@ -34,7 +34,7 @@ impl PageTable for ActivePageTable {
         // map the 4K `page` to the 4K `frame` with `flags`
         let flags = EF::VALID | EF::READABLE | EF::WRITABLE;
         let page = Page::of_addr(VirtAddr::new(addr));
-        let frame = Frame::of_addr(PhysAddr::new(target));
+        let frame = Frame::of_addr(PhysAddr::new(target as u32));
         // map the page to the frame using FrameAllocatorForRiscv
         // we may need frame allocator to alloc frame for new page table(first/second)
         self.0.map_to(page, frame, flags, &mut FrameAllocatorForRiscv).unwrap().flush();
@@ -194,10 +194,10 @@ impl Entry for PageEntry {
     fn clear_dirty(&mut self) { self.0.flags_mut().remove(EF::DIRTY); }
     fn set_writable(&mut self, value: bool) { self.0.flags_mut().set(EF::WRITABLE, value); }
     fn set_present(&mut self, value: bool) { self.0.flags_mut().set(EF::VALID | EF::READABLE, value); }
-    fn target(&self) -> usize { self.0.addr().as_usize() }
+    fn target(&self) -> usize { self.0.addr() .as_u32() as usize}
     fn set_target(&mut self, target: usize) {
         let flags = self.0.flags();
-        let frame = Frame::of_addr(PhysAddr::new(target));
+        let frame = Frame::of_addr(PhysAddr::new(target as u32));
         self.0.set(frame, flags);
     }
     fn writable_shared(&self) -> bool { self.0.flags().contains(EF::RESERVED1) }
@@ -228,7 +228,7 @@ impl InactivePageTable for InactivePageTable0 {
 
     fn new_bare() -> Self {
         let target = alloc_frame().expect("failed to allocate frame");
-        let frame = Frame::of_addr(PhysAddr::new(target));
+        let frame = Frame::of_addr(PhysAddr::new(target as u32));
         active_table().with_temporary_map(target, |_, table: &mut RvPageTable| {
             table.zero();
             table.set_recursive(RECURSIVE_INDEX, frame.clone());
@@ -307,7 +307,7 @@ impl InactivePageTable for InactivePageTable0 {
     *    `this` inactive table, so we can modify this inactive page table.
     */
     fn edit<T>(&mut self, f: impl FnOnce(&mut Self::Active) -> T) -> T {
-        let target = satp::read().frame().start_address().as_usize();
+        let target = satp::read().frame().start_address().as_u32() as usize;
         active_table().with_temporary_map(target, |active_table, root_table: &mut RvPageTable| {
             let backup = root_table[RECURSIVE_INDEX].clone();
 
@@ -329,7 +329,7 @@ impl InactivePageTable for InactivePageTable0 {
 
 impl Drop for InactivePageTable0 {
     fn drop(&mut self) {
-        dealloc_frame(self.root_frame.start_address().as_usize());
+        dealloc_frame(self.root_frame.start_address().as_u32() as usize);
     }
 }
 
@@ -337,12 +337,12 @@ struct FrameAllocatorForRiscv;
 
 impl FrameAllocator for FrameAllocatorForRiscv {
     fn alloc(&mut self) -> Option<Frame> {
-        alloc_frame().map(|addr| Frame::of_addr(PhysAddr::new(addr)))
+        alloc_frame().map(|addr| Frame::of_addr(PhysAddr::new(addr as u32) ))
     }
 }
 
 impl FrameDeallocator for FrameAllocatorForRiscv {
     fn dealloc(&mut self, frame: Frame) {
-        dealloc_frame(frame.start_address().as_usize());
+        dealloc_frame(frame.start_address().as_u32()as usize);
     }
 }

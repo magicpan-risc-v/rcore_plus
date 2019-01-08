@@ -1,10 +1,10 @@
 use core::mem;
-use riscv::{addr::*, register::sstatus};
+use crate::riscv::{addr::*, register::sstatus};
 use rcore_memory::PAGE_SIZE;
 use log::*;
 use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};
 use crate::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
-use riscv::register::satp;
+use crate::riscv::register::satp;
 
 #[cfg(feature = "no_mmu")]
 pub fn init() {

@@ -17,7 +17,7 @@ pub fn id() -> usize {
 }
 
 pub fn send_ipi(cpu_id: usize) {
-    bbl::sbi::send_ipi(1 << cpu_id);
+    crate::bbl::sbi::send_ipi((1 << cpu_id) as *const usize);
 }
 
 pub unsafe fn has_started(cpu_id: usize) -> bool {
@@ -33,5 +33,5 @@ pub unsafe fn start_others(hart_mask: usize) {
 }
 
 pub fn halt() {
-    unsafe { riscv::asm::wfi() }
+    unsafe { crate::riscv::asm::wfi() }
 }

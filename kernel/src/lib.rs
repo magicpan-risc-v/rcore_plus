@@ -8,9 +8,14 @@
 #![feature(global_asm)]
 #![no_std]
 
+#[macro_use]
+extern crate bitflags;
+
 // just keep it ...
 #[macro_use]
 extern crate alloc;
+
+extern crate bare_metal;
 
 pub use crate::process::{processor, new_kernel_context};
 use rcore_process::thread;
@@ -28,19 +33,21 @@ mod fs;
 mod sync;
 mod trap;
 mod shell;
+mod bbl;
+mod riscv;
 
-#[allow(dead_code)]
-#[cfg(target_arch = "x86_64")]
-#[path = "arch/x86_64/mod.rs"]
+//#[allow(dead_code)]
+//#[cfg(target_arch = "x86_64")]
+//#[path = "arch/x86_64/mod.rs"]
+//pub mod arch;
+
+//#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[path = "arch_rv32/mod.rs"]
 pub mod arch;
 
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-#[path = "arch/riscv32/mod.rs"]
-pub mod arch;
-
-#[cfg(target_arch = "aarch64")]
-#[path = "arch/aarch64/mod.rs"]
-pub mod arch;
+//#[cfg(target_arch = "aarch64")]
+//#[path = "arch/aarch64/mod.rs"]
+//pub mod arch;
 
 pub fn kmain() -> ! {
     processor().run();

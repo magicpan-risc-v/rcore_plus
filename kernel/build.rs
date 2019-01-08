@@ -13,19 +13,21 @@ fn main() {
 			gen_vector_asm().unwrap();
 		}
 		"riscv32" => {
-			println!("cargo:rerun-if-changed=src/arch/riscv32/compiler_rt.c");
+			println!("cargo:rerun-if-changed=src/arch_rv32/compiler_rt.c");
 			cc::Build::new()
-				.file("src/arch/riscv32/compiler_rt.c")
+				.file("src/arch_rv32/compiler_rt.c")
 				.flag("-march=rv32imac")
 				.flag("-mabi=ilp32")
     			.flag("-Wno-builtin-declaration-mismatch")
     			.flag("-O3")
+				.target(arch.as_str())
 				.compile("atomic_rt");
 			if let Ok(file_path) = gen_sfsimg_asm() {
 				cc::Build::new()
 					.file(&file_path)
 					.flag("-march=rv32imac")
 					.flag("-mabi=ilp32")
+					.target(arch.as_str())
 					.compile("sfsimg");
 			}
 		}

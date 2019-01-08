@@ -160,7 +160,8 @@ clean:
 	@cd $(user_dir) && make clean
 
 doc:
-	@cargo rustdoc -- --document-private-items
+#	@cargo rustdoc --verbose -- --document-private-items --target=targets/riscv32.json
+	@cargo rustdoc --verbose -- --document-private-items
 
 run: build justrun
 
@@ -220,7 +221,7 @@ ifeq ($(arch), x86_64)
 else ifeq ($(arch), riscv32)
 	@-patch -p0 -N -b \
 		$(shell rustc --print sysroot)/lib/rustlib/src/rust/src/libcore/sync/atomic.rs \
-		src/arch/riscv32/atomic.patch
+		src/arch_rv32/atomic.patch
 	@cargo xbuild $(build_args)
 else ifeq ($(arch), riscv64)
 	@./build-rv64

@@ -1,16 +1,9 @@
-#[cfg(feature = "m_mode")]
-use riscv::register::{
-    mstatus as xstatus,
-    mscratch as xscratch,
-    mtvec as xtvec,
-};
-#[cfg(not(feature = "m_mode"))]
-use riscv::register::{
+use crate::riscv::register::{
     sstatus as xstatus,
     sscratch as xscratch,
     stvec as xtvec,
 };
-use riscv::register::{mcause, mepc, sie, mie};
+use crate::riscv::register::{mcause, mepc, sie, mie};
 pub use self::context::*;
 use log::*;
 
@@ -51,7 +44,7 @@ pub fn init() {
 */
 #[inline(always)]
 pub unsafe fn enable() {
-    xstatus::set_xie();
+    xstatus::set_sie();
 }
 
 /*
@@ -62,8 +55,8 @@ pub unsafe fn enable() {
 */
 #[inline(always)]
 pub unsafe fn disable_and_store() -> usize {
-    let e = xstatus::read().xie() as usize;
-    xstatus::clear_xie();
+    let e = xstatus::read().sie() as usize;
+    xstatus::clear_sie();
     e
 }
 
@@ -76,7 +69,7 @@ pub unsafe fn disable_and_store() -> usize {
 #[inline(always)]
 pub unsafe fn restore(flags: usize) {
     if flags != 0 {
-        xstatus::set_xie();
+        xstatus::set_sie();
     }
 }
 
@@ -122,7 +115,7 @@ fn serial() {
 
 fn ipi() {
     debug!("IPI");
-    bbl::sbi::clear_ipi();
+    crate::bbl::sbi::clear_ipi();
 }
 
 /*

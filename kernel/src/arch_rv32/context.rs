@@ -1,11 +1,4 @@
-#[cfg(feature = "m_mode")]
-use riscv::register::{
-    mstatus as xstatus,
-    mstatus::Mstatus as Xstatus,
-    mcause::Mcause,
-};
-#[cfg(not(feature = "m_mode"))]
-use riscv::register::{
+use crate::riscv::register::{
     sstatus as xstatus,
     sstatus::Sstatus as Xstatus,
     mcause::Mcause,
@@ -40,8 +33,8 @@ impl TrapFrame {
         tf.x[2] = sp;
         tf.sepc = entry as usize;
         tf.sstatus = xstatus::read();
-        tf.sstatus.set_xpie(true);
-        tf.sstatus.set_xie(false);
+        tf.sstatus.set_spie(true);
+        tf.sstatus.set_sie(false);
         #[cfg(feature = "m_mode")]
         tf.sstatus.set_mpp(xstatus::MPP::Machine);
         #[cfg(not(feature = "m_mode"))]
@@ -64,8 +57,8 @@ impl TrapFrame {
         tf.x[2] = sp;
         tf.sepc = entry_addr;
         tf.sstatus = xstatus::read();
-        tf.sstatus.set_xpie(true);
-        tf.sstatus.set_xie(false);
+        tf.sstatus.set_spie(true);
+        tf.sstatus.set_sie(false);
         #[cfg(feature = "m_mode")]
         tf.sstatus.set_mpp(xstatus::MPP::User);
         #[cfg(not(feature = "m_mode"))]
