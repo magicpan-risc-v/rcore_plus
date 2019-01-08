@@ -24,7 +24,6 @@ impl Mvendorid {
 #[inline]
 pub fn read() -> Option<Mvendorid> {
     match () {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         () => {
             let r: usize;
             unsafe {
@@ -34,7 +33,5 @@ pub fn read() -> Option<Mvendorid> {
             // csr isn't implemented.
             NonZeroUsize::new(r).map(|bits| Mvendorid { bits })
         }
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        () => unimplemented!(),
     }
 }

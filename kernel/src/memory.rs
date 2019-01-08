@@ -11,23 +11,10 @@ use lazy_static::*;
 use log::*;
 use linked_list_allocator::LockedHeap;
 
-#[cfg(not(feature = "no_mmu"))]
 pub type MemorySet = rcore_memory::memory_set::MemorySet<InactivePageTable0>;
 
-#[cfg(feature = "no_mmu")]
-pub type MemorySet = rcore_memory::no_mmu::MemorySet<NoMMUSupportImpl>;
-
-// x86_64 support up to 256M memory
-#[cfg(target_arch = "x86_64")]
-pub type FrameAlloc = bit_allocator::BitAlloc64K;
-
 // RISCV has 8M memory
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub type FrameAlloc = bit_allocator::BitAlloc4K;
-
-// Raspberry Pi 3 has 1G memory
-#[cfg(target_arch = "aarch64")]
-pub type FrameAlloc = bit_allocator::BitAlloc1M;
 
 lazy_static! {
     pub static ref FRAME_ALLOCATOR: SpinNoIrqLock<FrameAlloc> = SpinNoIrqLock::new(FrameAlloc::default());

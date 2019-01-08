@@ -2,14 +2,11 @@ use simple_filesystem::*;
 use alloc::{boxed::Box, sync::Arc, string::String, collections::VecDeque, vec::Vec};
 use core::any::Any;
 use lazy_static::lazy_static;
-//#[cfg(target_arch = "x86_64")]
-//use crate::arch::driver::ide;
 use crate::sync::Condvar;
 use crate::sync::SpinNoIrqLock as Mutex;
 
 lazy_static! {
     pub static ref ROOT_INODE: Arc<INode> = {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64", target_arch = "aarch64"))]
         let device = {
             extern {
                 fn _user_img_start();
@@ -18,18 +15,14 @@ lazy_static! {
             // Hard link user program
             Box::new(unsafe { MemBuf::new(_user_img_start, _user_img_end) })
         };
-        #[cfg(target_arch = "x86_64")]
-        let device = Box::new(ide::IDE::new(1));
 
         let sfs = SimpleFileSystem::open(device).expect("failed to open SFS");
         sfs.root_inode()
     };
 }
 
-#[cfg(not(target_arch = "x86_64"))]
 struct MemBuf(&'static [u8]);
 
-#[cfg(not(target_arch = "x86_64"))]
 impl MemBuf {
     unsafe fn new(begin: unsafe extern fn(), end: unsafe extern fn()) -> Self {
         use core::slice;
@@ -37,7 +30,6 @@ impl MemBuf {
     }
 }
 
-#[cfg(not(target_arch = "x86_64"))]
 impl Device for MemBuf {
     fn read_at(&mut self, offset: usize, buf: &mut [u8]) -> Option<usize> {
         let slice = self.0;
@@ -49,23 +41,6 @@ impl Device for MemBuf {
         None
     }
 }
-
-//#[cfg(target_arch = "x86_64")]
-//impl BlockedDevice for ide::IDE {
-//    const BLOCK_SIZE_LOG2: u8 = 9;
-//    fn read_at(&mut self, block_id: usize, buf: &mut [u8]) -> bool {
-//        use core::slice;
-//        assert!(buf.len() >= ide::BLOCK_SIZE);
-//        let buf = unsafe { slice::from_raw_parts_mut(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
-//        self.read(block_id as u64, 1, buf).is_ok()
-//    }
-//    fn write_at(&mut self, block_id: usize, buf: &[u8]) -> bool {
-//        use core::slice;
-//        assert!(buf.len() >= ide::BLOCK_SIZE);
-//        let buf = unsafe { slice::from_raw_parts(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
-//        self.write(block_id as u64, 1, buf).is_ok()
-//    }
-//}
 
 #[derive(Default)]
 pub struct Stdin {

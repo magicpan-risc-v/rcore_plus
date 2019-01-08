@@ -4,7 +4,6 @@
 #[inline(always)]
 pub fn read() -> usize {
     match () {
-        #[cfg(target_arch = "riscv32")]
         () => {
             let r: usize;
             unsafe {
@@ -12,7 +11,5 @@ pub fn read() -> usize {
             }
             r
         }
-        #[cfg(not(target_arch = "riscv32"))]
-        () => unimplemented!(),
     }
 }

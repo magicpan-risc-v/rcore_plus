@@ -140,7 +140,6 @@ impl Mcause {
 #[inline]
 pub fn read() -> Mcause {
     match () {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         () => {
             let r: usize;
             unsafe {
@@ -148,7 +147,5 @@ pub fn read() -> Mcause {
             }
             Mcause { bits: r }
         }
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        () => unimplemented!(),
     }
 }

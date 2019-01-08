@@ -70,7 +70,6 @@ global_asm!("
     .endm
 ");
 
-#[cfg(target_arch = "riscv32")]
 global_asm!(r"
     .equ XLENB,     4
     .equ XLENb,     32
@@ -81,21 +80,7 @@ global_asm!(r"
         sw \a1, \a2*XLENB(sp)
     .endm
 ");
-#[cfg(target_arch = "riscv64")]
-global_asm!(r"
-    .equ XLENB,     8
-    .equ XLENb,     64
-    .macro LOAD a1, a2
-        ld \a1, \a2*XLENB(sp)
-    .endm
-    .macro STORE a1, a2
-        sd \a1, \a2*XLENB(sp)
-    .endm
-");
 
-
-#[cfg(feature = "board_k210")]
-global_asm!(include_str!("board/k210/boot.asm"));
 global_asm!(include_str!("boot/entry.asm"));
 global_asm!(include_str!("boot/trap.asm"));
 

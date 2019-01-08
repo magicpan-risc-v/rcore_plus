@@ -31,8 +31,6 @@
 #           | off
 #
 #   board   = none                  Running on QEMU
-#           | k210                  Only available on riscv64, build without bbl, run on K210
-#           | raspi3                Only available on aarch64, run on Raspberry Pi 3 Model B/B+
 #
 #   m_mode                          Only available on riscv32, build for M-Mode, without MMU
 

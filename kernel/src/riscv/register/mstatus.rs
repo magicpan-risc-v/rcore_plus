@@ -83,40 +83,29 @@ impl Mstatus {
 #[inline]
 pub fn read() -> Mstatus {
     match () {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         () => {
             let r: usize;
             unsafe {
                 asm!("csrrs $0, 0x300, x0" : "=r"(r) ::: "volatile");
             }
             Mstatus { bits: r }
-        }
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        () => unimplemented!(),
+        },
     }
 }
 
 /// Sets the CSR
-#[cfg_attr(not(any(target_arch = "riscv32", target_arch = "riscv64")), allow(unused_variables))]
 #[inline]
 unsafe fn set(bits: usize) {
     match () {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         () => asm!("csrrs x0, 0x300, $0" :: "r"(bits) :: "volatile"),
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        () => unimplemented!(),
     }
 }
 
 /// Clears the CSR
-#[cfg_attr(not(any(target_arch = "riscv32", target_arch = "riscv64")), allow(unused_variables))]
 #[inline]
 unsafe fn clear(bits: usize) {
     match () {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         () => asm!("csrrc x0, 0x300, $0" :: "r"(bits) :: "volatile"),
-        #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-        () => unimplemented!(),
     }
 }
 
