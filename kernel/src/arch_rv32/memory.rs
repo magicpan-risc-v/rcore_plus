@@ -3,7 +3,7 @@ use crate::riscv::{addr::*, register::sstatus};
 use rcore_memory::PAGE_SIZE;
 use log::*;
 use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};
-use crate::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
+use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
 use crate::riscv::register::satp;
 
 #[cfg(feature = "no_mmu")]

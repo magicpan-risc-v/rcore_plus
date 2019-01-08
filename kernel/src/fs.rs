@@ -2,8 +2,8 @@ use simple_filesystem::*;
 use alloc::{boxed::Box, sync::Arc, string::String, collections::VecDeque, vec::Vec};
 use core::any::Any;
 use lazy_static::lazy_static;
-#[cfg(target_arch = "x86_64")]
-use crate::arch::driver::ide;
+//#[cfg(target_arch = "x86_64")]
+//use crate::arch::driver::ide;
 use crate::sync::Condvar;
 use crate::sync::SpinNoIrqLock as Mutex;
 
@@ -50,22 +50,22 @@ impl Device for MemBuf {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-impl BlockedDevice for ide::IDE {
-    const BLOCK_SIZE_LOG2: u8 = 9;
-    fn read_at(&mut self, block_id: usize, buf: &mut [u8]) -> bool {
-        use core::slice;
-        assert!(buf.len() >= ide::BLOCK_SIZE);
-        let buf = unsafe { slice::from_raw_parts_mut(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
-        self.read(block_id as u64, 1, buf).is_ok()
-    }
-    fn write_at(&mut self, block_id: usize, buf: &[u8]) -> bool {
-        use core::slice;
-        assert!(buf.len() >= ide::BLOCK_SIZE);
-        let buf = unsafe { slice::from_raw_parts(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
-        self.write(block_id as u64, 1, buf).is_ok()
-    }
-}
+//#[cfg(target_arch = "x86_64")]
+//impl BlockedDevice for ide::IDE {
+//    const BLOCK_SIZE_LOG2: u8 = 9;
+//    fn read_at(&mut self, block_id: usize, buf: &mut [u8]) -> bool {
+//        use core::slice;
+//        assert!(buf.len() >= ide::BLOCK_SIZE);
+//        let buf = unsafe { slice::from_raw_parts_mut(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
+//        self.read(block_id as u64, 1, buf).is_ok()
+//    }
+//    fn write_at(&mut self, block_id: usize, buf: &[u8]) -> bool {
+//        use core::slice;
+//        assert!(buf.len() >= ide::BLOCK_SIZE);
+//        let buf = unsafe { slice::from_raw_parts(buf.as_ptr() as *mut u32, ide::BLOCK_SIZE / 4) };
+//        self.write(block_id as u64, 1, buf).is_ok()
+//    }
+//}
 
 #[derive(Default)]
 pub struct Stdin {
