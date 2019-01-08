@@ -54,8 +54,6 @@ pub fn spawn<F, T>(f: F) -> JoinHandle<T>
         F: Send + 'static + FnOnce() -> T,
         T: Send + 'static,
 {
-    trace!("spawn:");
-
     // 注意到下面的问题：
     // Processor只能从入口地址entry+参数arg创建新线程
     // 而我们现在需要让它执行一个未知类型的（闭包）函数f
@@ -90,12 +88,9 @@ pub fn spawn<F, T>(f: F) -> JoinHandle<T>
         unreachable!()
     }
 
-    // 在Processor中创建新的线程
     let context = new_kernel_context(kernel_thread_entry::<F, T>, f as usize);
-    let pid = processor().manager().add(context, 0);
+    let pid = processor().manager().add(context, processor().pid());
 
-    // 接下来看看`JoinHandle::join()`的实现
-    // 了解是如何获取f返回值的
     return JoinHandle {
         thread: Thread { pid },
         mark: PhantomData,
@@ -145,7 +140,6 @@ impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
     pub fn join(self) -> Result<T, ()> {
         loop {
-            trace!("{} join", self.thread.pid);
             match processor().manager().get_status(self.thread.pid) {
                 Some(Status::Exited(exit_code)) => {
                     processor().manager().remove(self.thread.pid);
@@ -153,7 +147,7 @@ impl<T> JoinHandle<T> {
                     return Ok(unsafe { *Box::from_raw(exit_code as *mut T) });
                 }
                 None => return Err(()),
-                _ => {}
+                _ => (),
             }
             processor().manager().wait(current().id(), self.thread.pid);
             processor().yield_now();

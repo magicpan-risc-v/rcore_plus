@@ -10,6 +10,10 @@ use crate::thread;
 use alloc::vec;
 use log::*;
 
+const EAT_TIME_MS: u64 = 200;
+const THINK_TIME_MS: u64 = 300;
+const NUM_ITERS: usize = 5;
+
 struct Philosopher {
     name: &'static str,
     left: usize,
@@ -31,7 +35,7 @@ impl Philosopher {
 
     fn think(&self) {
         println!("{} is thinking.", self.name);
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_millis(THINK_TIME_MS));
     }
 }
 
@@ -49,7 +53,7 @@ impl Table for MutexTable {
         let _right = self.forks[right].lock();
 
         println!("{} is eating.", name);
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_millis(EAT_TIME_MS));
     }
 }
 
@@ -72,7 +76,7 @@ impl Table for MonitorTable {
             fork_status[right] = true;
         }
         println!("{} is eating.", name);
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_millis(EAT_TIME_MS));
         {
             let mut fork_status = self.fork_status.lock();
             fork_status[left] = false;
@@ -94,34 +98,33 @@ fn philosopher(table: Arc<Table>) {
 
     let handles: Vec<_> = philosophers.into_iter().map(|p| {
         let table = table.clone();
-        trace!("philosopher start");
-
         thread::spawn(move || {
-            for i in 0..5 {
+            for i in 0..NUM_ITERS {
                 p.think();
                 p.eat(&table);
                 println!("{} iter {} end.", p.name, i);
             }
         })
     }).collect();
-    trace!("philosopher starting finish");
 
     for h in handles {
         h.join().expect("handle should not be none");
     }
-    println!("philosophers dining end");
+    println!("philosophers dining passed");
 }
 
-pub fn philosopher_using_mutex() {
+pub extern fn philosopher_using_mutex(_arg: usize) -> ! {
     println!("philosophers using mutex");
 
     let table = Arc::new(MutexTable {
         forks: vec![Mutex::new(()), Mutex::new(()), Mutex::new(()), Mutex::new(()), Mutex::new(())]
     });
     philosopher(table);
+
+    loop { thread::yield_now(); }
 }
 
-pub fn philosopher_using_monitor() {
+pub extern fn philosopher_using_monitor(_arg: usize) -> ! {
     println!("philosophers using monitor");
 
     let table = Arc::new(MonitorTable {
@@ -129,4 +132,6 @@ pub fn philosopher_using_monitor() {
         fork_condvar: vec![Condvar::new(), Condvar::new(), Condvar::new(), Condvar::new(), Condvar::new()],
     });
     philosopher(table);
+
+    loop { thread::yield_now(); }
 }

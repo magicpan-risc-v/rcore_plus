@@ -8,17 +8,33 @@
 #   make clean                  Clean
 #
 # Options:
-#   arch    = x86_64 | riscv32 | riscv64 | aarch64
-#   d    = int | in_asm | ...   QEMU debug info
-#   mode = debug | release
-#   LOG  = off | error | warn | info | debug | trace
-#   SFSIMG = <sfsimg>              SFS image path of user programs
-#   smp     = 1 | 2 | ...           SMP core number
-#   graphic = on | off              enable/disable qemu graphical output
-#   board   = none                Running on QEMU
-#         | k210                Only available on riscv64, build without bbl, run on K210
-#         | raspi3              Only available on aarch64, run on Raspberry Pi 3 Model B/B+
-#   m_mode                      Only available on riscv32, build for M-Mode, without MMU
+#   arch    = riscv32               In this repository we only enable the riscv32 target.
+#
+#   d       = int
+#           | in_asm
+#           | ...     QEMU debug info
+#
+#   mode    = debug | release
+#
+#   LOG     = off
+#           | error
+#           | warn
+#           | info
+#           | debug
+#           | trace
+#
+#   SFSIMG  = <sfsimg>              SFS image path of user programs
+#
+#   smp     = <positive integer>    Number of smp cores.
+#
+#   graphic = on                    enable/disable qemu graphical output
+#           | off
+#
+#   board   = none                  Running on QEMU
+#           | k210                  Only available on riscv64, build without bbl, run on K210
+#           | raspi3                Only available on aarch64, run on Raspberry Pi 3 Model B/B+
+#
+#   m_mode                          Only available on riscv32, build for M-Mode, without MMU
 
 arch ?= riscv32
 board ?= none
