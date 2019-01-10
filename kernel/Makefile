@@ -179,7 +179,7 @@ doc:
 
 run: build justrun
 
-justrun:
+justrun: build
 	@qemu-system-$(arch) $(qemu_opts)
 
 debug: $(kernel) $(bin)
