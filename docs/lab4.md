@@ -8,17 +8,18 @@
 ## 实验内容
 
 我们之前已经完成了物理内存管理和虚拟内存管理的实验。
-除了内存管理外，内核还需要考虑如何分时使用处理器来并发执行多个进程，本实验将介绍相关关原理。
+除了内存管理外，内核还需要考虑如何分时使用处理器来并发执行多个进程，本实验将介绍相关原理。
 
 ## 实验原理
 
-程序等于算法加数据结构，为了实现内核线程管理的功能，我们一方面需要表示内核线程的数据结构，另一方面需要在线程间进行切换的调度算法。
+程序等于算法加数据结构，为了实现内核线程管理的功能，我们一方面需要表示内核线程的数据结构，另一方面需要管理线程间切换的调度算法。
+实验6中将会对调度算法进行详细的分析，本实验中我们只关注从一个内核线程切换到另一个内核线程的“算法”。
 
 ### 数据结构
 
 #### 中断帧
 
-发生中断时向内核栈顶部压入的数据结构，详情可参考实验一的文档。
+发生中断时向内核栈顶部压入的数据结构，详情可参考实验一中对中断的说明文档。
 
 ```rust
 pub struct TrapFrame {
@@ -32,7 +33,8 @@ pub struct TrapFrame {
 
 #### 线程上下文
 
-一个线程必要的上下文信息，即callee-saved registers。
+一个线程必要的上下文信息，包括`s0`至`s11`这12个寄存器以及`ra`寄存器，即[callee-saved registers](https://stackoverflow.com/questions/9268586/what-are-callee-and-caller-saved-registers)。
+另外我们还保存了一个`satp`寄存器的值，用来表示该内核线程应该使用的页表，由于内核线程都使用内核地址空间，因而此处没有影响。
 
 ```rust
 struct ContextData {
@@ -49,7 +51,7 @@ impl ContextData {
 }
 ```
 
-可以发现构造新`struct ContextData`时，默认的返回地址寄存器`ra`的值为`__trapret`，这是为了利用中断返回机制来完成新线程的首次执行。
+可以发现构造新`struct ContextData`时，默认的返回地址寄存器`ra`的值为`__trapret`，这是为了利用中断返回机制来完成新线程的首次执行，之后会详细说明。
 
 #### 初始内核栈
 
@@ -69,12 +71,15 @@ pub struct InitStack {
 
 ```rust
 pub trait Context {
+    /// 将当前CPU切换到另一个上下文
     unsafe extern "C"
     fn switch_to(&mut self, target: &mut Context);
 }
 ```
 
-对应的实现如下所示。
+对应的实现如下所示，注意`struct Process`是一个比较通用的结构体，可以用来表示一个完整的进程。
+当我们令`struct Process`使用内核地址空间以及内核栈时，它就可以用来表示一个内核线程。
+否则，它就表示一个用户进程，我们将在实验5中详细讲解。
 
 ```rust
 use crate::arch::interrupt::Context as ArchContext;
@@ -151,7 +156,7 @@ pub unsafe extern fn switch(&mut self, _target: &mut Self) {
 }
 ```
 
-上述汇编语句完成了从一个线程的上下文切换到另一个线程上下文的过程，可以看出一些寄存器被保存到了栈上，构成了`struct ContextData`的结构，然后目标线程对应的寄存器被一次恢复，从而完成了线程上下文的切换。
+上述汇编语句完成了从一个线程的上下文切换到另一个线程上下文的过程，可以看出当前线程的寄存器被依次保存到栈上，构成了`struct ContextData`的结构，然后目标线程对应的寄存器被依次恢复，从而完成了线程上下文的切换。
 
 ### 线程创建
 
@@ -160,16 +165,16 @@ pub struct Context(usize);
 
 impl Context {
     /*
-    * @param:
-    *   entry: program entry for the thread
-    *   arg: a0
-    *   kstack_top: kernel stack top
-    *   cr3: cr3 register, save the physical address of Page directory
-    * @brief:
-    *   generate the content of kernel stack for the new kernel thread and save it's address at kernel stack top - 1
-    * @retval:
-    *   a Context struct with the pointer to the kernel stack top - 1 as its only element
-    */
+     * @param:
+     *   entry: program entry for the thread
+     *   arg: a0
+     *   kstack_top: kernel stack top
+     *   cr3: cr3 register, save the physical address of Page directory
+     * @brief:
+     *   generate the content of kernel stack for the new kernel thread and save it's address at kernel stack top - 1
+     * @retval:
+     *   a Context struct with the pointer to the kernel stack top - 1 as its only element
+     */
     pub unsafe fn new_kernel_thread(entry: extern fn(usize) -> !, arg: usize, kstack_top: usize, cr3: usize) -> Self {
         InitStack {
             context: ContextData::new(cr3),
@@ -179,7 +184,7 @@ impl Context {
 }
 ```
 
-我们可以使用`Context::new_kernel_thread`来创建一个新的内核线程，该函数向指定内核栈的顶部压入了上下文信息和一个中断帧。
+我们可以使用`Context::new_kernel_thread`来创建一个新的内核线程，该函数向内核栈的顶部压入了上下文信息和一个中断帧。
 
 ```rust
 impl TrapFrame {
@@ -201,5 +206,5 @@ impl TrapFrame {
 
 由上述信息可知，一个新内核线程从创建到执行的过程如下：
 1. `Context::new_kernel_thread`在内核栈上完成`InitStack`的初始化操作；
-2. `switch`函数执行，并将`InitStack::context::ra`即`__trapret`的地址放入`ra`寄存器中；
-3. `__trapret`执行，首先根据`InitStack::tf`回复`sp`等寄存器，然后执行`sret`，跳转到`spec`所指地址开始新线程的执行。
+2. `switch`函数执行，并将`InitStack::context::ra`即`__trapret`的地址放入`ra`寄存器中，因此`switch`函数执行完成后返回到`__trapret`而非调用入口；
+3. `__trapret`执行，首先根据`InitStack::tf`中断帧的内容回复寄存器，然后执行`sret`，跳转到`spec`所指地址开始新线程的执行。
