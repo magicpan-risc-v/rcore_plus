@@ -246,3 +246,24 @@ impl FrameDeallocator for FrameAllocatorForRiscv {
         dealloc_frame(frame.start_address().as_u32()as usize);
     }
 }
+
+/// setup page table in the frame, need 1 page
+/// param: Frame: page table root frame
+pub fn setup_page_table(frame: Frame) {
+    let p2 = unsafe { &mut *(frame.start_address().as_u32() as *mut RvPageTable) };
+    p2.zero();
+    p2.set_recursive(RECURSIVE_INDEX, frame.clone());
+
+    // Set kernel identity map
+    // 0x10000000 ~ 1K area
+    p2.map_identity(0x40, EF::VALID | EF::READABLE | EF::WRITABLE);
+    // 0x80000000 ~ 12M area
+    p2.map_identity(KERNEL_P2_INDEX, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
+    p2.map_identity(KERNEL_P2_INDEX + 1, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
+    p2.map_identity(KERNEL_P2_INDEX + 2, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
+
+    use crate::riscv::register::satp;
+    unsafe { satp::set(satp::Mode::Sv32, 0, frame); }
+    sfence_vma_all();
+    info!("setup init page table end");
+}
