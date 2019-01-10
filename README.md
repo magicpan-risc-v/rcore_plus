@@ -1,6 +1,6 @@
 # rCore Plus
 
-[![Build Status](https://travis-ci.org/wangrunji0408/RustOS.svg?branch=master)](https://travis-ci.org/oscourse-tsinghua/RustOS)
+[![Build Status](https://travis-ci.org/oscourse-tsinghua/RustOS.svg?branch=lab8-rv32)](https://travis-ci.org/oscourse-tsinghua/RustOS)
 
 Rust version of THU [uCore OS Plus](https://github.com/chyyuu/ucore_os_plus).
 
@@ -21,9 +21,8 @@ Tested boards: QEMU, labeled-RISCV, K210, Raspberry Pi 3B+
 * [Rust](https://www.rust-lang.org) toolchain at nightly-2019-01-01
 * Cargo tools: [cargo-xbuild](https://github.com/rust-osdev/cargo-xbuild)
 * [QEMU](https://www.qemu.org) >= 3.1.0
-* [bootimage](https://github.com/rust-osdev/bootimage) (for x86_64)
 * [RISCV64 GNU toolchain](https://www.sifive.com/boards) (for riscv32/64)
-* [AArch64 GNU toolchain](https://web.stanford.edu/class/cs140e/assignments/0-blinky/) (for aarch64)
+
 
 ### How to run
 
@@ -34,9 +33,12 @@ cargo install cargo-xbuild bootimage
 
 ```bash
 git clone https://github.com//oscourse-tsinghua/rcore_plus.git --recursive
-cd rcore_plus/kernel
+git checkout lab8-rv32
+cd rcore_plus/riscv_pk
+git checkout lab8-rv32
+cd ../kernel
 rustup override set nightly-2019-01-01
-make run arch={riscv32,riscv64,x86_64,aarch64}
+make run arch=riscv32
 ```
 
 ## History
@@ -49,7 +51,7 @@ This is a project of THU courses:
 
 Project wiki (internal access only): [OS](http://os.cs.tsinghua.edu.cn/oscourse/OS2018spring/projects/g11), [CECS](http://os.cs.tsinghua.edu.cn/oscourse/csproject2018/group05), [OST](http://os.cs.tsinghua.edu.cn/oscourse/OsTrain2018)
 
-Reports (in Chinese): [docs](./docs)
+Lab docs, Reports (in Chinese): [docs](./docs)
 
 It's based on [BlogOS](https://github.com/phil-opp/blog_os) , a demo project in the excellent tutorial [Writing an OS in Rust (First Edition)](https://os.phil-opp.com/first-edition/).
 
