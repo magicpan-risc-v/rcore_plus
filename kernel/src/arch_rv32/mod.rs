@@ -3,7 +3,6 @@ pub mod interrupt;
 pub mod timer;
 pub mod paging;
 pub mod memory;
-pub mod compiler_rt;
 pub mod consts;
 pub mod cpu;
 mod sbi;
@@ -22,7 +21,6 @@ pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: 
     }
 
     unsafe { memory::clear_bss(); }
-    unsafe { BBL_FUNCTIONS_PTR = functions as *const _; }
 
     println!("Hello RISCV! in hart {}, dtb @ {:#x}, functions @ {:#x}", hartid, dtb, functions);
 
@@ -43,62 +41,5 @@ fn others_main() -> ! {
     crate::kmain();
 }
 
-
-/// Constant & Macro for `trap.asm`
-#[cfg(feature = "m_mode")]
-global_asm!("
-    .equ xstatus,   0x300
-    .equ xscratch,  0x340
-    .equ xepc,      0x341
-    .equ xcause,    0x342
-    .equ xtval,     0x343
-    .macro XRET\n mret\n .endm
-    .macro TEST_BACK_TO_KERNEL  // s0 == back to kernel?
-        li   s3, 3 << 11
-        and  s0, s1, s3         // mstatus.MPP = 3
-    .endm
-");
-#[cfg(not(feature = "m_mode"))]
-global_asm!("
-    .equ xstatus,   0x100
-    .equ xscratch,  0x140
-    .equ xepc,      0x141
-    .equ xcause,    0x142
-    .equ xtval,     0x143
-    .macro XRET\n sret\n .endm
-    .macro TEST_BACK_TO_KERNEL
-        andi s0, s1, 1 << 8     // sstatus.SPP = 1
-    .endm
-");
-
-global_asm!(r"
-    .equ XLENB,     4
-    .equ XLENb,     32
-    .macro LOAD a1, a2
-        lw \a1, \a2*XLENB(sp)
-    .endm
-    .macro STORE a1, a2
-        sw \a1, \a2*XLENB(sp)
-    .endm
-");
-
 global_asm!(include_str!("boot/entry.asm"));
 global_asm!(include_str!("boot/trap.asm"));
-
-
-/// Some symbols passed from BBL.
-/// Used in M-mode kernel.
-#[repr(C)]
-struct BBLFunctions {
-    mcall_trap: BBLTrapHandler,
-    illegal_insn_trap: BBLTrapHandler,
-    mcall_console_putchar: extern fn(u8),
-    mcall_console_getchar: extern fn() -> usize,
-}
-
-type BBLTrapHandler = extern fn(regs: *const usize, mcause: usize, mepc: usize);
-static mut BBL_FUNCTIONS_PTR: *const BBLFunctions = ::core::ptr::null();
-use lazy_static::lazy_static;
-lazy_static! {
-    static ref BBL: BBLFunctions = unsafe { BBL_FUNCTIONS_PTR.read() };
-}

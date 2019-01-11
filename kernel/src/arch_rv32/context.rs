@@ -1,17 +1,13 @@
-use crate::riscv::register::{
-    sstatus as xstatus,
-    sstatus::Sstatus as Xstatus,
-    mcause::Mcause,
-};
+use crate::riscv::register::*;
 
 #[derive(Clone)]
 #[repr(C)]
 pub struct TrapFrame {
     pub x: [usize; 32], // general registers
-    pub sstatus: Xstatus, // Supervisor Status Register
+    pub sstatus: sstatus::Sstatus, // Supervisor Status Register
     pub sepc: usize, // Supervisor exception program counter, save the trap virtual address (here is used to save the process program entry addr?)
     pub stval: usize, // Supervisor trap value
-    pub scause: Mcause, // scause register: record the cause of exception/interrupt/trap
+    pub scause: scause::Scause, // scause register: record the cause of exception/interrupt/trap
 }
 
 /// Generate the trapframe for building new thread in kernel
@@ -32,13 +28,10 @@ impl TrapFrame {
         tf.x[10] = arg; // a0
         tf.x[2] = sp;
         tf.sepc = entry as usize;
-        tf.sstatus = xstatus::read();
+        tf.sstatus = sstatus::read();
         tf.sstatus.set_spie(true);
         tf.sstatus.set_sie(false);
-        #[cfg(feature = "m_mode")]
-        tf.sstatus.set_mpp(xstatus::MPP::Machine);
-        #[cfg(not(feature = "m_mode"))]
-        tf.sstatus.set_spp(xstatus::SPP::Supervisor);
+        tf.sstatus.set_spp(sstatus::SPP::Supervisor);
         tf
     }
 
@@ -56,13 +49,10 @@ impl TrapFrame {
         let mut tf: Self = unsafe { zeroed() };
         tf.x[2] = sp;
         tf.sepc = entry_addr;
-        tf.sstatus = xstatus::read();
+        tf.sstatus = sstatus::read();
         tf.sstatus.set_spie(true);
         tf.sstatus.set_sie(false);
-        #[cfg(feature = "m_mode")]
-        tf.sstatus.set_mpp(xstatus::MPP::User);
-        #[cfg(not(feature = "m_mode"))]
-        tf.sstatus.set_spp(xstatus::SPP::User);
+        tf.sstatus.set_spp(sstatus::SPP::User);
         tf
     }
 }

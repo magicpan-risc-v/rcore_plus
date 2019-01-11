@@ -188,7 +188,7 @@ impl InactivePageTable for InactivePageTable0 {
     }
 
     unsafe fn set_token(token: usize) {
-        asm!("csrw 0x180, $0" :: "r"(token) :: "volatile");
+        asm!("csrw satp, $0" :: "r"(token) :: "volatile");
     }
 
     fn active_token() -> usize {

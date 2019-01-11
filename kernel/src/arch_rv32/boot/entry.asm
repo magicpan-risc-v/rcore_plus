@@ -5,7 +5,6 @@ _start:
     slli t0, t0, 16
     
     lui sp, %hi(bootstack)
-    addi sp, sp, %lo(bootstack)
     add sp, sp, t0
 
     call rust_main
