@@ -5,6 +5,17 @@ use lazy_static::lazy_static;
 use crate::sync::Condvar;
 use crate::sync::SpinNoIrqLock as Mutex;
 
+// Hard link user program
+global_asm!(r#"
+    .section .rodata
+    .align 12
+    .global _user_img_start
+    .global _user_img_end
+_user_img_start:
+    .incbin "../user/img/ucore-riscv32.img"
+_user_img_end:
+"#);
+
 lazy_static! {
     pub static ref ROOT_INODE: Arc<INode> = {
         let device = {
