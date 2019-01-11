@@ -16,12 +16,6 @@ impl VirtAddr {
     pub fn p1_index(&self) -> usize {
         self.0.get_bits(12..22)
     }
-    pub fn page_number(&self) -> usize {
-        self.0.get_bits(12..32)
-    }
-    pub fn page_offset(&self) -> usize {
-        self.0.get_bits(0..12)
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -63,9 +57,6 @@ impl Page {
     }
     pub fn p1_index(&self) -> usize {
         self.0.p1_index()
-    }
-    pub fn number(&self) -> usize {
-        self.0.page_number()
     }
     pub fn from_page_table_indices(p2_index: usize, p1_index: usize) -> Self {
         use bit_field::BitField;

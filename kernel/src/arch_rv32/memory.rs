@@ -4,7 +4,6 @@ use rcore_memory::PAGE_SIZE;
 use log::*;
 use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};
 use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
-use crate::riscv::register::satp;
 
 /*
 * @brief:

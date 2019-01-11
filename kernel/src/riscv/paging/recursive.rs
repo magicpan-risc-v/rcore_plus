@@ -41,9 +41,6 @@ impl MapperFlush {
         use super::super::asm::sfence_vma;
         sfence_vma(0, self.0.start_address());
     }
-
-    /// Don't flush the TLB and silence the “must be used” warning.
-    pub fn ignore(self) {}
 }
 
 /// This error is returned from `map_to` and similar methods.
@@ -115,16 +112,6 @@ impl<'a> RecursivePageTable<'a> {
             p2: table,
             recursive_index,
         })
-    }
-
-    /// Creates a new RecursivePageTable without performing any checks.
-    ///
-    /// The `recursive_index` parameter must be the index of the recursively mapped entry.
-    pub unsafe fn new_unchecked(table: &'a mut PageTable, recursive_index: usize) -> Self {
-        RecursivePageTable {
-            p2: table,
-            recursive_index,
-        }
     }
 
     fn create_p1_if_not_exist<A>(&mut self, p2_index: usize, allocator: &mut A) -> Result<(), MapToError>

@@ -162,16 +162,7 @@ unsafe fn push_args_at_stack<'a, Iter>(args: Iter, stack_top: usize) -> usize
 fn memory_set_from(elf: &ElfFile<'_>) -> (MemorySet, usize) {
     debug!("come in to memory_set_from");
     let mut ms = MemorySet::new();
-    let mut entry = elf.header.pt2.entry_point() as usize;
-
-    // [NoMMU] Get total memory size and alloc space
-    let va_begin = elf.program_iter()
-        .filter(|ph| ph.get_type() == Ok(Type::Load))
-        .map(|ph| ph.virtual_addr()).min().unwrap() as usize;
-    let va_end = elf.program_iter()
-        .filter(|ph| ph.get_type() == Ok(Type::Load))
-        .map(|ph| ph.virtual_addr() + ph.mem_size()).max().unwrap() as usize;
-    let va_size = va_end - va_begin;
+    let entry = elf.header.pt2.entry_point() as usize;
 
     for ph in elf.program_iter() {
         if ph.get_type() != Ok(Type::Load) {

@@ -6,13 +6,12 @@
 #![feature(optin_builtin_traits)]
 #![feature(panic_info_message)]
 #![feature(global_asm)]
+#![feature(const_fn)]
 #![no_std]
 
 #[macro_use]
 extern crate bitflags;
 
-// just keep it ...
-#[macro_use]
 extern crate alloc;
 
 extern crate bare_metal;

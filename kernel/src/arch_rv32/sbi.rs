@@ -21,10 +21,6 @@ pub fn console_getchar() -> usize {
     sbi_call(SBI_CONSOLE_GETCHAR, 0, 0, 0)
 }
 
-pub fn shutdown() {
-    sbi_call(SBI_SHUTDOWN, 0, 0, 0);
-}
-
 pub fn set_timer(stime_value: u64) {
     #[cfg(target_pointer_width = "32")]
     sbi_call(SBI_SET_TIMER, stime_value as usize, (stime_value >> 32) as usize, 0);
@@ -38,18 +34,6 @@ pub fn clear_ipi() {
 
 pub fn send_ipi(hart_mask: *const usize) {
     sbi_call(SBI_SEND_IPI, hart_mask as usize, 0, 0);
-}
-
-pub fn remote_fence_i(hart_mask: *const usize) {
-    sbi_call(SBI_REMOTE_FENCE_I, hart_mask as usize, 0, 0);
-}
-
-pub fn remote_sfence_vma(hart_mask: *const usize, _start: usize, _size: usize) {
-    sbi_call(SBI_REMOTE_SFENCE_VMA, hart_mask as usize, 0, 0);
-}
-
-pub fn remote_sfence_vma_asid(hart_mask: *const usize, _start: usize, _size: usize, _asid: usize) {
-    sbi_call(SBI_REMOTE_SFENCE_VMA_ASID, hart_mask as usize, 0, 0);
 }
 
 const SBI_SET_TIMER: usize = 0;

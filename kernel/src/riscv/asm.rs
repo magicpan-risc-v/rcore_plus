@@ -13,11 +13,6 @@ macro_rules! instruction {
 
 
 /// Priviledged ISA Instructions
-instruction!(ecall, "ecall");
-instruction!(ebreak, "ebreak");
-instruction!(uret, "uret");
-instruction!(sret, "sret");
-instruction!(mret, "mret");
 instruction!(wfi, "wfi");
 
 use super::addr::VirtAddr;

@@ -6,7 +6,6 @@ pub mod memory;
 pub mod consts;
 pub mod cpu;
 mod sbi;
-use log::*;
 
 #[no_mangle]
 pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: usize) -> ! {
