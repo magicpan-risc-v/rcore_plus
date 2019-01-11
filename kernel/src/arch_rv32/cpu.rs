@@ -17,7 +17,7 @@ pub fn id() -> usize {
 }
 
 pub fn send_ipi(cpu_id: usize) {
-    crate::bbl::sbi::send_ipi((1 << cpu_id) as *const usize);
+    super::sbi::send_ipi((1 << cpu_id) as *const usize);
 }
 
 pub unsafe fn has_started(cpu_id: usize) -> bool {

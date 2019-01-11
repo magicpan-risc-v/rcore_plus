@@ -33,7 +33,6 @@ mod fs;
 mod sync;
 mod trap;
 mod shell;
-mod bbl;
 mod riscv;
 
 #[path = "arch_rv32/mod.rs"]

@@ -115,7 +115,7 @@ fn serial() {
 
 fn ipi() {
     debug!("IPI");
-    crate::bbl::sbi::clear_ipi();
+    super::sbi::clear_ipi();
 }
 
 /*

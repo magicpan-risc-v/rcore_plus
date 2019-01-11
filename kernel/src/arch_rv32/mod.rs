@@ -6,6 +6,7 @@ pub mod memory;
 pub mod compiler_rt;
 pub mod consts;
 pub mod cpu;
+mod sbi;
 use log::*;
 
 #[no_mangle]

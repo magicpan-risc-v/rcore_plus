@@ -1,5 +1,5 @@
 use crate::riscv::register::*;
-use crate::bbl::sbi;
+use super::sbi;
 use log::*;
 
 /*
