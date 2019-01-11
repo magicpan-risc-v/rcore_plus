@@ -62,8 +62,7 @@ impl Process {
 
         match elf.header.pt2.type_().as_type() {
             header::Type::Executable => {
-//                #[cfg(feature = "no_mmu")]
-//                panic!("ELF is not shared object");
+
             },
             header::Type::SharedObject => {},
             _ => panic!("ELF is not executable or shared object"),
@@ -74,7 +73,7 @@ impl Process {
 
         // User stack
         use crate::consts::{USER_STACK_OFFSET, USER_STACK_SIZE, USER32_STACK_OFFSET};
-        #[cfg(not(feature = "no_mmu"))]
+
         let mut ustack_top = {
             let (ustack_buttom, ustack_top) = match is32 {
                 true => (USER32_STACK_OFFSET, USER32_STACK_OFFSET + USER_STACK_SIZE),
@@ -83,8 +82,6 @@ impl Process {
             memory_set.push(ustack_buttom, ustack_top,  ByFrame::new(MemoryAttr::default().user(), GlobalFrameAlloc), "user_stack");
             ustack_top
         };
-        #[cfg(feature = "no_mmu")]
-        let mut ustack_top = memory_set.push(USER_STACK_SIZE).as_ptr() as usize + USER_STACK_SIZE;
 
         unsafe {
             memory_set.with(|| { ustack_top = push_args_at_stack(args, ustack_top) });
@@ -114,8 +111,6 @@ impl Process {
         info!("finish mmset clone in fork!");
 
         // MMU:   copy data to the new space
-        // NoMMU: coping data has been done in `memory_set.clone()`
-        #[cfg(not(feature = "no_mmu"))]
         for area in memory_set.iter() {
             let data = Vec::<u8>::from(unsafe { area.as_slice() });
             unsafe { memory_set.with(|| {
@@ -177,12 +172,6 @@ fn memory_set_from(elf: &ElfFile<'_>) -> (MemorySet, usize) {
         .filter(|ph| ph.get_type() == Ok(Type::Load))
         .map(|ph| ph.virtual_addr() + ph.mem_size()).max().unwrap() as usize;
     let va_size = va_end - va_begin;
-    #[cfg(feature = "no_mmu")]
-    let target = ms.push(va_size);
-    #[cfg(feature = "no_mmu")]
-    { entry = entry - va_begin + target.as_ptr() as usize; }
-    #[cfg(feature = "board_k210")]
-    { entry += 0x40000000; }
 
     for ph in elf.program_iter() {
         if ph.get_type() != Ok(Type::Load) {
@@ -194,11 +183,6 @@ fn memory_set_from(elf: &ElfFile<'_>) -> (MemorySet, usize) {
         let mem_size = ph.mem_size() as usize;
 
         // Get target slice
-        #[cfg(feature = "no_mmu")]
-        let target = &mut target[virt_addr - va_begin..virt_addr - va_begin + mem_size];
-        #[cfg(feature = "no_mmu")]
-        info!("area @ {:?}, size = {:#x}", target.as_ptr(), mem_size);
-        #[cfg(not(feature = "no_mmu"))]
         let target = {
             ms.push(virt_addr, virt_addr + mem_size, ByFrame::new(memory_attr_from(ph.flags()), GlobalFrameAlloc), "");
             unsafe { ::core::slice::from_raw_parts_mut(virt_addr as *mut u8, mem_size) }

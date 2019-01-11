@@ -80,7 +80,6 @@ impl Drop for KernelStack {
 
 /// Handle page fault at `addr`.
 /// Return true to continue, false to halt.
-#[cfg(not(feature = "no_mmu"))]
 pub fn page_fault_handler(addr: usize) -> bool {
     info!("start handling swap in/out page fault, badva={:x}", addr);
     process().memory_set.page_fault_handler(addr)
@@ -95,22 +94,6 @@ pub fn init_heap() {
 
 /// Allocator for the rest memory space on NO-MMU case.
 pub static MEMORY_ALLOCATOR: LockedHeap = LockedHeap::empty();
-
-#[derive(Debug, Clone, Copy)]
-pub struct NoMMUSupportImpl;
-
-impl rcore_memory::no_mmu::NoMMUSupport for NoMMUSupportImpl {
-    type Alloc = LockedHeap;
-    fn allocator() -> &'static Self::Alloc {
-        &MEMORY_ALLOCATOR
-    }
-}
-
-#[cfg(feature = "no_mmu")]
-pub fn page_fault_handler(_addr: usize) -> bool {
-    unreachable!()
-}
-
 
 //pub mod test {
 //    pub fn cow() {
