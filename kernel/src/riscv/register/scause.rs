@@ -85,12 +85,7 @@ impl Scause {
     /// Returns the code field
     pub fn code(&self) -> usize {
         match () {
-            #[cfg(target_pointer_width = "32")]
             () => self.bits & !(1 << 31),
-            #[cfg(target_pointer_width = "64")]
-            () => self.bits & !(1 << 63),
-            #[cfg(target_pointer_width = "128")]
-            () => self.bits & !(1 << 127),
         }
     }
 
@@ -108,12 +103,7 @@ impl Scause {
     #[inline(always)]
     pub fn is_interrupt(&self) -> bool {
         match () {
-            #[cfg(target_pointer_width = "32")]
             () => self.bits & (1 << 31) == 1 << 31,
-            #[cfg(target_pointer_width = "64")]
-            () => self.bits & (1 << 63) == 1 << 63,
-            #[cfg(target_pointer_width = "128")]
-            () => self.bits & (1 << 127) == 1 << 127,
         }
     }
 
