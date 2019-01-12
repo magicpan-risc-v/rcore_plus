@@ -124,21 +124,10 @@ impl BitAlloc for BitAlloc16 {
 }
 
 #[inline(always)]
-#[cfg(target_arch = "x86_64")]
-fn log2(x: u16) -> usize {
-    assert_ne!(x, 0);
-    let pos: u16;
-    unsafe { asm!("bsrw $1, $0" :"=r"(pos) :"r"(x) : :"volatile") };
-    pos as usize
-}
-
-#[inline(always)]
-#[cfg(not(target_arch = "x86_64"))]
 fn log2(x: u16) -> usize {
     log2_naive(x)
 }
 
-#[cfg(not(target_arch = "x86_64"))]
 #[inline(always)]
 fn log2_naive(mut x: u16) -> usize {
     //a naive implement
@@ -155,7 +144,6 @@ fn log2_naive(mut x: u16) -> usize {
 mod tests {
     use super::*;
 
-    #[cfg(not(target_arch = "x86_64"))]
     #[test]
     fn log2_() {
         for x in 1..=0xffff {

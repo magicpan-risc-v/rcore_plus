@@ -1,5 +1,3 @@
-# arch = {riscv32, x86_64, aarch64}
-# mode = {debug, release}
 arch ?= riscv32
 mode ?= debug
 
@@ -17,7 +15,7 @@ sfsimg := $(build_path)/user-$(arch).img
 
 mksfs := mksfs
 
-build_args := --target targets/$(arch)-rcore.json
+build_args := --target $(arch)-rcore.json
 ifeq ($(mode), release)
 build_args := $(build_args) --release
 endif

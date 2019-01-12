@@ -109,7 +109,7 @@ pub trait InactivePageTable: Sized {
     /// Map kernel segments
     fn map_kernel(&mut self);
 
-    /// CR3 on x86, SATP on RISCV, TTBR on AArch64
+    /// SATP on RISCV
     fn token(&self) -> usize;
     unsafe fn set_token(token: usize);
     fn active_token() -> usize;

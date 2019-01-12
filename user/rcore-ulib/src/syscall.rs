@@ -4,22 +4,9 @@ fn sys_call(syscall_id: SyscallId, arg0: usize, arg1: usize, arg2: usize, arg3: 
     let ret: i32;
 
     unsafe {
-        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
             asm!("ecall"
             : "={x10}" (ret)
             : "{x10}" (id), "{x11}" (arg0), "{x12}" (arg1), "{x13}" (arg2), "{x14}" (arg3), "{x15}" (arg4), "{x16}" (arg5)
-            : "memory"
-            : "volatile");
-        #[cfg(target_arch = "x86_64")]
-            asm!("int 0x40"
-            : "={rax}" (ret)
-            : "{rax}" (id), "{rdi}" (arg0), "{rsi}" (arg1), "{rdx}" (arg2), "{rcx}" (arg3), "{r8}" (arg4), "{r9}" (arg5)
-            : "memory"
-            : "intel" "volatile");
-        #[cfg(target_arch = "aarch64")]
-            asm!("svc 0"
-            : "={x0}" (ret)
-            : "{x8}" (id), "{x0}" (arg0), "{x1}" (arg1), "{x2}" (arg2), "{x3}" (arg3), "{x4}" (arg4), "{x5}" (arg5)
             : "memory"
             : "volatile");
     }

@@ -1,14 +1,14 @@
-# rCore Plus
+# rCore labs
 
 [![Build Status](https://travis-ci.org/oscourse-tsinghua/RustOS.svg?branch=lab8-rv32)](https://travis-ci.org/oscourse-tsinghua/RustOS)
 
-Rust version of THU [uCore OS Plus](https://github.com/chyyuu/ucore_os_plus).
+Rust version of THU [uCore OS  Labs](https://github.com/chyyuu/ucore_os_lab).
 
 Going to be the next generation teaching operating system.
 
-Supported architectures: x86_64, RISCV32/64, AArch64， MIPS(future)
+Supported architectures: RISCV32
 
-Tested boards: QEMU, labeled-RISCV, K210, Raspberry Pi 3B+
+Tested boards: QEMU
 
 [Dev docs](https://rucore.gitbook.io/rust-os-docs/) (in Chinese)
 
