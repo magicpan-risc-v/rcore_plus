@@ -67,7 +67,7 @@ qemu_opts += -d $(d)
 endif
 
 ### build args ###
-build_args := --target targets/$(target).json --features "$(features)"
+build_args := --target $(target).json --features "$(features)"
 
 ifeq ($(mode), release)
 build_args += --release
@@ -94,7 +94,6 @@ clean:
 	@cd $(user_dir) && make clean
 
 doc:
-#	@cargo rustdoc --verbose -- --document-private-items --target=targets/riscv32.json
 	@cargo rustdoc --verbose -- --document-private-items
 
 run: build justrun
