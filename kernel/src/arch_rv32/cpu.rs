@@ -30,5 +30,5 @@ pub unsafe fn start_others(hart_mask: usize) {
 }
 
 pub fn halt() {
-    unsafe { crate::riscv::asm::wfi() }
+    unsafe { super::riscv::asm::wfi() }
 }

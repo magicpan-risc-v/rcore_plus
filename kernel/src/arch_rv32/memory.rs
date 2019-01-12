@@ -1,5 +1,5 @@
 use core::mem;
-use crate::riscv::{addr::*, register::sstatus};
+use super::riscv::{addr::*, register::sstatus};
 use rcore_memory::PAGE_SIZE;
 use log::*;
 use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};

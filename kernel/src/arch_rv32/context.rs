@@ -1,4 +1,4 @@
-use crate::riscv::register::*;
+use super::super::riscv::register::*;
 
 #[derive(Clone)]
 #[repr(C)]

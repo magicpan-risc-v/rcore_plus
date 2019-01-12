@@ -1,11 +1,11 @@
 use super::consts::RECURSIVE_INDEX;
 // Depends on kernel
 use crate::memory::{active_table, alloc_frame, dealloc_frame};
-use crate::riscv::addr::*;
-use crate::riscv::asm::{sfence_vma, sfence_vma_all};
-use crate::riscv::paging::{Mapper, PageTable as RvPageTable, PageTableEntry, PageTableFlags as EF, RecursivePageTable};
-use crate::riscv::paging::{FrameAllocator, FrameDeallocator};
-use crate::riscv::register::satp;
+use super::riscv::addr::*;
+use super::riscv::asm::{sfence_vma, sfence_vma_all};
+use super::riscv::paging::{Mapper, PageTable as RvPageTable, PageTableEntry, PageTableFlags as EF, RecursivePageTable};
+use super::riscv::paging::{FrameAllocator, FrameDeallocator};
+use super::riscv::register::satp;
 use rcore_memory::paging::*;
 use log::*;
 
@@ -262,7 +262,7 @@ pub fn setup_page_table(frame: Frame) {
     p2.map_identity(KERNEL_P2_INDEX + 1, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
     p2.map_identity(KERNEL_P2_INDEX + 2, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
 
-    use crate::riscv::register::satp;
+    use super::riscv::register::satp;
     unsafe { satp::set(satp::Mode::Sv32, 0, frame); }
     sfence_vma_all();
     info!("setup init page table end");

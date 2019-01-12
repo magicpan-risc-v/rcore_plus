@@ -1,4 +1,4 @@
-use crate::riscv::register::*;
+use super::riscv::register::*;
 use super::sbi;
 use log::*;
 

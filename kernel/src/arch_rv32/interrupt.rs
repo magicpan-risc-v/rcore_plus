@@ -1,4 +1,4 @@
-use crate::riscv::register::*;
+use super::riscv::register::*;
 pub use self::context::*;
 use log::*;
 
