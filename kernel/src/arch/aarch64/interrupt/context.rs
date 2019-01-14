@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use aarch64::barrier;
 use aarch64::addr::PhysAddr;
 use aarch64::paging::PhysFrame;
-use aarch64::asm::{tlb_invalidate_all, ttbr_el1_write_asid};
+use aarch64::asm::{tlb_invalidate_all, ttbr_el1_write_asid, flush_icache_all};
 
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
@@ -35,6 +35,9 @@ impl TrapFrame {
     fn new_user_thread(entry_addr: usize, sp: usize) -> Self {
         use core::mem::zeroed;
         let mut tf: Self = unsafe { zeroed() };
+
+        flush_icache_all();
+
         tf.sp = sp;
         tf.elr = entry_addr;
         tf.spsr = 0b1101_00_0000; // To EL 0, enable IRQ
