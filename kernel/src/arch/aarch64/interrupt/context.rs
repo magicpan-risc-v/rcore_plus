@@ -10,18 +10,27 @@ use aarch64::asm::{tlb_invalidate_all, ttbr_el1_write_asid, flush_icache_all};
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
 pub struct TrapFrame {
+    /// exception link register (EL1)
     pub elr: usize,
+    /// saved process status register (EL1)
     pub spsr: usize,
+    /// stack pointer (EL0)
     pub sp: usize,
-    pub tpidr: usize, // currently unused
-    // pub q0to31: [u128; 32], // disable SIMD/FP registers
+    /// thread ID Register (EL0), currently unused
+    pub tpidr: usize,
+    // /// SIMD/FP registers, currently unused
+    // pub q0to31: [u128; 32],
+    /// other general registers
     pub x1to29: [usize; 29],
+    /// used for alignment
     pub __reserved: usize,
-    pub x30: usize, // lr
+    /// lr
+    pub x30: usize,
+    /// x0
     pub x0: usize,
 }
 
-/// 用于在内核栈中构造新线程的中断帧
+/// Generate the trapframe for building new thread in kernel
 impl TrapFrame {
     fn new_kernel_thread(entry: extern fn(usize) -> !, arg: usize, sp: usize) -> Self {
         use core::mem::zeroed;
@@ -48,7 +57,7 @@ impl TrapFrame {
     }
 }
 
-/// 新线程的内核栈初始内容
+/// kernel stack contents for a new thread
 #[derive(Debug)]
 #[repr(C)]
 pub struct InitStack {
