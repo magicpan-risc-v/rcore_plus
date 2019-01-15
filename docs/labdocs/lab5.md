@@ -1,4 +1,4 @@
-# 用户进程管理
+# Lab5 用户进程管理
 
 ## 实验目的
 
@@ -8,7 +8,16 @@
 
 ## 实验内容
 
-进程是一个抽象概念，它让一个程序可以假设它独占一台机器。进程向程序提供“看上去”私有的，其他进程无法读写的地址空间，以及一颗“看上去”仅执行该程序的CPU。我们常说的进程是指用户进程，与实验四中的内核线程相比，用户进程一般运行在用户态，并且有单独的地址空间。本实验将在实验四的基础上介绍用户进程管理的知识。
+进程是一个抽象概念，它让一个程序可以假设它独占一台机器。进程向程序提供“看上去”私有的，其他进程无法读写的地址空间，以及一颗“看上去”仅执行该程序的 CPU。我们常说的进程是指用户进程，与 lab4 中的内核线程相比，用户进程一般运行在用户态，并且有单独的地址空间。本实验将在 lab4 的基础上介绍用户进程管理的知识。
+
+## 上下关系
+
+。。。
+
+## 系列练习
+
+- 设计实现可灵活控制不同内核线程到不同CPU上运行的机制
+- 设计实现可定时/定期唤醒进程执行的机制
 
 ## 实验原理
 
@@ -17,15 +26,17 @@
 2. 如何启动用户进程？
 3. 用户进程如何获得操作系统提供的服务？
 
-下面我们依次研究上述问题。
+概述一下整个实验的执行过程。。。
+
+
 
 ### 用户程序加载
 
 这部分涉及的代码主要位于 `kernel/src/process/context.rs` 文件中的 `Process::new_user` 函数。
 
-一般在类Unix操作系统中，可执行文件都以[ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)格式保存在外存上。ELF格式保存了程序的代码和数据，并指出代码和数据在地址空间的分布。因此，我们需要将文件载入内存，然后根据ELF格式标准解析文件，并构造程序在用户态需要的页表。
+一般在类Unix操作系统中，可执行文件都以 [ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format) 格式保存在外存上。ELF格式保存了程序的代码和数据，并指出代码和数据在地址空间的分布。因此，我们需要将文件载入内存，然后根据ELF格式标准解析文件，并构造程序在用户态需要的页表。
 
-解析ELF格式对应的代码如下，此处使用了外部库[xmas-elf](https://github.com/nrc/xmas-elf)。解析ELF的方法可以参考uCore中的[load_icode](https://github.com/chyyuu/ucore_os_lab/blob/master/labcodes_answer/lab8_result/kern/process/proc.c#L590)函数。
+解析ELF格式对应的代码如下，此处使用了外部库 [xmas-elf](https://github.com/nrc/xmas-elf)。解析ELF的方法可以参考uCore中的 [load_icode](https://github.com/chyyuu/ucore_os_lab/blob/master/labcodes_answer/lab8_result/kern/process/proc.c#L590) 函数。
 
 ```rust
 // Parse elf
@@ -88,9 +99,9 @@ Box::new(Process {
 })
 ```
 
-在实验四中，我们构造新 `struct Process` 时，第一个域的值由 `ArchContext::new_kernel_thread` 给出。这两者有何不同？我们知道用户进程和内核线程的主要区别在于地址空间和特权级，`Process::memory_set` 域影响了地址空间，我们可以推测 `Process::arch` 会影响特权级。我们在下一小结讲解用户进程启动时再进行详细的分析。
+在 lab4 中，我们构造新 `struct Process` 时，第一个域的值由 `ArchContext::new_kernel_thread` 给出。这两者有何不同？我们知道用户进程和内核线程的主要区别在于地址空间和特权级，`Process::memory_set` 域影响了地址空间，我们可以推测 `Process::arch` 会影响特权级。我们在下一小结讲解用户进程启动时再进行详细的分析。
 
-需要注意的是，我们将用户程序的代码写入内存，并即将跳转到该处运行。不过这里的写操作不会影响指令 cache，运行用户程序取指时可能会先从指令 cache 中取到旧的数据。因此需要在这时候刷新一下指令 cache。为了方便，刷新指令 cache 的操作暂时放到了 `TrapFrame::new_user_thread` 函数里。
+需要注意的是，我们将用户程序的指令写入内存，并即将跳转到该处运行。不过这里的写操作不会影响指令 cache，运行用户程序取指时可能会先从指令 cache 中取到旧的数据。因此需要在这时候刷新一下指令 cache。为了方便，刷新指令 cache 的操作暂时放到了 `TrapFrame::new_user_thread` 函数里。
 
 ### 用户进程启动
 
@@ -128,7 +139,8 @@ impl TrapFrame {
 }
 ```
 
-与实验四中基本相同，要注意的地方有：
+与 lab4 中基本相同，要注意的地方有：
+
 1. 此处的 `sp` 是用户栈的栈顶指针
 2. `elr` 设为用户程序入口
 3. `spsr` 需要设置为 `0b1101_00_0000`，使得 `eret` 进行返回时能够返回用户态
