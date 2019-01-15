@@ -142,7 +142,7 @@ pub unsafe fn switch(&mut self, target: &mut Self) {
 
 #### 页表切换
 
-由于我们使用 `TTBR0` 与 `TTBR1` 寄存器分别表示内核页表与用户页表，页表的切换是针对用户线程来说的，内核线程无需切换页表。这部分内容将在实验五中具体说明。
+由于我们使用 `TTBR0` 与 `TTBR1` 寄存器分别表示内核页表与用户页表，页表的切换是针对用户线程来说的，内核线程无需切换页表，即使修改了 `TTBR1_EL1` 寄存器也不受影响。这部分内容将在实验五中具体说明。
 
 #### 寄存器与栈的切换
 
@@ -221,4 +221,4 @@ impl TrapFrame {
 由上述信息可知，一个新内核线程从创建到执行的过程如下：
 1. `Context::new_kernel_thread` 在内核栈上完成 `InitStack` 的初始化操作；
 2. `switch` 函数执行，进而调用 `__switch` 函数并将 `InitStack::context::lr` 即 `__trapret` 的地址放入 `lr` 寄存器中，因此 `switch` 函数执行完成后返回到 `__trapret` 而非调用入口；
-3. `__trapret` 执行，首先根据 `InitStack::tf` 中断帧的内容回复寄存器，然后执行`eret`，跳转到 `elr` 所指地址开始新线程的执行。
+3. `__trapret` 执行，首先根据 `InitStack::tf` 中断帧的内容回复寄存器，然后执行 `eret`，跳转到 `elr` 所指地址开始新线程的执行。
