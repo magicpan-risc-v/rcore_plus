@@ -7,46 +7,23 @@
 
 ## 实验内容
 
-我们之前已经完成了物理内存管理和虚拟内存管理的实验。除了内存管理外，内核还需要考虑如何分时使用处理器来并发执行多个进程/线程，本实验将介绍在内核中如何创建/切换/执行线程。
-
-## 上下关系
-
-lab1/2/3完成了中断管理以及物理和虚拟内存管理，这为lab4中的内核线程管理功能提供了动态内存管理和进程/线程切换调度的机制。当一段代码/程序加载到内存中运行时，首先通过rcore的内存管理机制给这段代码动态分配管理空间（即线程/进程控制块）和执行空间（代码段/数据段等）。代码执行完毕后，rcore还要回收这些内存空间用于其他用途。
-
-通过lab1的时钟中断，可以有效实现分时使用CPU来“并发”执行多个程序的能力，且在lab2/3的虚存管理下，可让每个运行的程序（这里用线程或进程表示）“感到”它们各自拥有“自己”的CPU。这部分的内容在lab5和lab6中有更多的体现。在lab4中我们只关注从一个内核线程切换到另一个内核线程的实现细节，而lab6中将会对调度算法进行详细的分析。
-
-## 系列练习
-
-- 设计实现可灵活控制不同内核线程到不同CPU上运行的机制
-- 设计实现可定时/定期唤醒进程执行的机制
-- 设计实现线程回收机制
+我们之前已经完成了物理内存管理和虚拟内存管理的实验。
+除了内存管理外，内核还需要考虑如何分时使用处理器来并发执行多个进程/线程，本实验将介绍在内核中如何创建/切换/执行线程。
 
 ## 实验原理
 
-程序等于算法加数据结构，为了实现内核线程管理的功能，我们一方面需要表示内核线程的数据结构，另一方面需要管理线程间切换的细节。为了能在操作系统中有效运行内核线程，我们一般需要注意和理解以下问题：
+程序等于算法加数据结构，为了实现内核线程管理的功能，我们一方面需要表示内核线程的数据结构，另一方面需要管理线程间切换的细节。
+为了能在操作系统中有效运行内核线程，我们一般需要注意和理解以下问题：
 
-1. 如果把一段静态的代码改变成了一个可运行的内核线程？
-2. 管理内核线程的数据结构的组成和功能是啥？
-3. 如何初始化内核线程并让内核线程启动的？
-4. 如何切换内核线程？
-5. 如何回收内核线程占用的资源？
-6. 如果线程的执行过程中出现了中断，rcore如何完成线程执行现场的保存与恢复？
+1. 表示内核线程的数据结构是什么？
+2. 内核线程是如何启动的？
+3. 内核线程间是如何进行切换的？
 
-### 实验执行流程
-
-lab2和lab3完成了对内存的虚拟化，但整个控制流还是一条线串行执行。lab4将在此基础上进行CPU的虚拟化，即让rcore实现分时共享CPU，实现多条控制流能够并发执行。从某种程度上，我们可以把控制流看作是一个内核线程。本次实验将首先接触的是内核线程的管理。内核线程是一种特殊的进程，内核线程与用户进程的区别有两个：内核线程只运行在内核态而用户进程会在在用户态和内核态交替运行；所有内核线程直接使用共同的ucore内核内存空间，不需为每个内核线程维护单独的内存空间而用户进程需要维护各自的用户内存空间。从内存空间占用情况这个角度上看，我们可以把线程看作是一种共享内存空间的轻量级进程。
-
-为了实现内核线程，需要设计管理线程的数据结构，即进程控制块（在这里也可叫做线程控制块）。【Note：在Rust中是用OOP风格实现的对象，是否还应叫“xx控制块”？】如果要让内核线程运行，我们首先要创建内核线程对应的进程控制块，还需把这些进程控制块通过链表连在一起【Note：Rust中的容器不再是链表】，便于随时进行插入，删除和查找操作等进程管理事务。这个链表就是进程控制块链表。然后在通过调度器（scheduler）来让不同的内核线程在不同的时间段占用CPU执行，实现对CPU的分时共享。那lab4中是如何一步一步实现这个过程的呢？
-
-我们还是从arch_rv32/mod.rs中的rust_main函数入手分析。在rust_main函数中，当完成中断/内存/时钟的初始化工作后，就调用了crate::process::init()函数，这个函数完成了idle内核线程和init内核线程的创建或复制工作。idle内核线程的工作就是不停地查询，看是否有其他内核线程可以执行了，如果有，马上让调度器选择那个内核线程执行。【Note：目前idle线程就是不停地让CPU休眠，直到下次时钟中断再让出CPU。此处应改实现还是文档？】所以idle内核线程是在rcore中没有其他内核线程可执行的情况下才会被调用。【Note：目前idle线程并不是优先级最低的，需要修改实现】接着就是调用processor().manager().add(Process::new_kernel())函数来创建init内核线程。init内核线程的工作就是显示“Hello World”，表明自己存在且能正常工作了。
-
-调度器会在特定的调度点上执行调度，完成进程切换。在lab4中，这个调度点就一处，即在cpu\_idle函数中，此函数如果发现当前进程（也就是idle内核线程）的need\_resched置为1（在初始化idleproc的进程控制块时就置为1了），则调用schedule函数，完成进程调度和进程切换。【Note：rcore中没有need\_resched标志，而是在时钟中断时调用`ProcessManager.tick()`询问调度器是否该切换了】进程调度的过程其实比较简单，就是在进程控制块链表中查找到一个“合适”的内核线程，所谓“合适”就是指内核线程处于“Ready”状态。在接下来的switch\_to函数完成具体的进程切换过程。一旦切换成功，那么init内核线程就可以通过显示字符串来表明本次实验成功。
-
-### 关键数据结构
+### 数据结构
 
 #### 中断帧
 
-中断帧是用于保存被打断的内核线程执行现场的重要数据结构。发生中断时，RISC-V硬件和rcore软件都会向内核栈顶部压入的数据结构，详情可参考lab1中对中断的说明文档。
+详情可参考lab1中对中断的说明。
 
 ```rust
 pub struct TrapFrame {
@@ -224,3 +201,96 @@ impl TrapFrame {
 1. `Context::new_kernel_thread`在内核栈上完成`InitStack`的初始化操作；
 2. `switch`函数执行，并将`InitStack::context::ra`即`__trapret`的地址放入`ra`寄存器中，因此`switch`函数执行完成后返回到`__trapret`而非调用入口；
 3. `__trapret`执行，首先根据`InitStack::tf`中断帧的内容回复寄存器，然后执行`sret`，跳转到`spec`所指地址开始新线程的执行。
+
+## 附录
+
+### bbl中断处理
+
+为了支持操作系统的正常运行，bbl必须具有基本的中断处理功能。
+bbl是用了类似中断向量表的结构，见`riscv-pk/machine/mentry.S`文件的开头部分。
+
+```asm
+  .data
+  .align 6
+trap_table:
+#define BAD_TRAP_VECTOR 0
+  .word bad_trap
+  .word pmp_trap
+  .word illegal_insn_trap
+  .word bad_trap
+  .word misaligned_load_trap
+  .word pmp_trap
+  .word misaligned_store_trap
+  .word pmp_trap
+  .word bad_trap
+  .word mcall_trap
+  .word bad_trap
+#ifdef BBL_BOOT_MACHINE
+  .word mcall_trap
+#else
+  .word bad_trap
+#endif /* BBL_BOOT_MACHINE */
+  .word bad_trap
+#define TRAP_FROM_MACHINE_MODE_VECTOR 13
+  .word __trap_from_machine_mode
+  .word bad_trap
+  .word bad_trap
+```
+
+中断触发后，会根据中断号`mcause`跳转到表中相应的函数进行处理。
+例如从S态发出的`ecall`对应的`mcause`为9，因此将会执行`mcall_trap`函数进行相应的处理。
+
+```c
+void mcall_trap(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc)
+{
+  write_csr(mepc, mepc + 4);
+
+  uintptr_t n = regs[17], arg0 = regs[10], arg1 = regs[11], retval, ipi_type;
+
+  switch (n)
+  {
+    case SBI_CONSOLE_PUTCHAR:
+      retval = mcall_console_putchar(arg0);
+      break;
+    case SBI_CONSOLE_GETCHAR:
+      retval = mcall_console_getchar();
+      break;
+    case SBI_SEND_IPI:
+      ipi_type = IPI_SOFT;
+      goto send_ipi;
+    case SBI_REMOTE_SFENCE_VMA:
+    case SBI_REMOTE_SFENCE_VMA_ASID:
+      ipi_type = IPI_SFENCE_VMA;
+      goto send_ipi;
+    case SBI_REMOTE_FENCE_I:
+      ipi_type = IPI_FENCE_I;
+send_ipi:
+      send_ipi_many((uintptr_t*)arg0, ipi_type);
+      retval = 0;
+      break;
+    case SBI_CLEAR_IPI:
+      retval = mcall_clear_ipi();
+      break;
+    case SBI_SHUTDOWN:
+      retval = mcall_shutdown();
+      break;
+    case SBI_SET_TIMER:
+#if __riscv_xlen == 32
+      retval = mcall_set_timer(arg0 + ((uint64_t)arg1 << 32));
+#else
+      retval = mcall_set_timer(arg0);
+#endif
+      break;
+    default:
+      retval = -ENOSYS;
+      break;
+  }
+  regs[10] = retval;
+}
+```
+
+在完成lab5后，读者将会发现bbl处理来自S态的`ecall`的流程和rcore处理来自U态的流程相似。
+`mcall_trap`函数的处理过程如下：
+1. `write_csr(mepc, mepc + 4)`使得中断返回后不再触发`ecall`语句，而是从下一条语句接着执行
+2. 根据寄存器中保存的信息判断操作系统请求的服务，并进行相应的处理
+3. `regs[10] = retval`将处理结果写入寄存器`a0`，返回后操作系统就可知道`ecall`调用的结果
