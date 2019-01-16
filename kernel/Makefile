@@ -131,7 +131,6 @@ $(bin): kernel
 		--with-arch=rv32imac \
 		--disable-fp-emulation \
 		--host=riscv64-unknown-elf \
-		--enable-print-device-tree \
 		--with-payload=$(abspath $(kernel)) && \
 	make -j32 && \
 	cp bbl $(abspath $@)
