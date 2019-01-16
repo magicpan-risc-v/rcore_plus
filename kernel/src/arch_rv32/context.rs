@@ -235,6 +235,6 @@ impl Context {
 
     /// Used for getting the init TrapFrame of a new user context in `sys_exec`.
     pub unsafe fn get_init_tf(&self) -> TrapFrame {
-        (*(self.0 as *const InitStack)).tf.clone()
+        (*(self.sp as *const InitStack)).tf.clone()
     }
 }
