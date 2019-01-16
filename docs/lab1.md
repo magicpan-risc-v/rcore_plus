@@ -54,9 +54,11 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 |        2         | M, U            | Secure embedded systems                     |
 |        3         | M, S, U         | Systems running Unix-like operating systems |
 
+在基于rcore on rv32的操作系统实验中，bootloader运行在M-mode特权级，rcore kernel运行在S-mode特权级，而应用程序运行在U-mode特权级。
+
 ### Berkeley Boot Loader
 
-bbl是运行在M态的特殊程序，负责对底层硬件的控制，并向运行在S态的操作系统提供相应的服务。
+bbl是运行在M-mode特权级的特殊程序，负责对底层硬件的控制，并向运行在S-mode特权级的操作系统提供相应的服务。
 bbl的职责是进行初始化工作并将控制权转交给内核，并通过Supervisor Binary Interface (SBI)为操作系统提供基础的服务。
 
 #### rcore的编译
@@ -65,7 +67,7 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 两者的编译是分开进行的，rcore编译完成后会生成`kernel/target/riscv32/debug/rcore`文件。
 然后在编译bbl的过程中，该文件会被嵌入到bbl的二进制文件中，读者可以检查`riscv-pk/bbl/payload.S`文件，我们使用了GCC提供的`.incbin`汇编命令将`BBL_PAYLOAD`所指向的文件包含在了生成的程序中。
 
-这样做是因为我们使用的RISC-V模拟器QEMU不支持磁盘的模拟，因此我们只能将需要加载的内核文件放入引导程序之中，再由引导程序将内核释放到内存中。
+这样做是因为当前我们使用的RISC-V模拟器QEMU不支持磁盘的模拟，因此我们只能将需要加载的内核文件放入引导程序之中，再由引导程序将内核释放到内存中。
 
 #### bbl启动过程
 
@@ -73,7 +75,7 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 
 #### rcore启动过程
 
-bbl在完成初始化工作后，会将处理器切换到S态同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。
+bbl在完成初始化工作后，会将处理器从M-mode特权级切换到S-mode特权级同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。
 rcore之后要完成的主要任务包括：
 1. 设置中断向量
 2. 设置时钟中断
@@ -86,10 +88,7 @@ rcore之后要完成的主要任务包括：
 `interrupt.rs`中的`init`函数完成了设置中断向量的任务。
 
 ```rust
-/*
-* @brief:
-*   initialize the interrupt status
-*/
+/// initialize the interrupt status
 pub fn init() {
     extern {
         fn __alltraps();
@@ -116,10 +115,7 @@ pub fn init() {
 另外，`interrupt::enable`函数能够使能中断。
 
 ```rust
-/*
-* @brief:
-*   enable interrupt
-*/
+/// enable interrupt
 #[inline(always)]
 pub unsafe fn enable() {
     sstatus::set_sie();
@@ -131,10 +127,7 @@ pub unsafe fn enable() {
 `kernel/src/arch_rv32/timer.rs`中的`init`函数完成了初始化时钟中断的工作。
 
 ```rust
-/*
-* @brief: 
-*   enable supervisor timer interrupt and set next timer interrupt
-*/
+/// enable supervisor timer interrupt and set next timer interrupt
 pub fn init() {
     // Enable supervisor timer interrupt
     unsafe { sie::set_stimer(); }
@@ -142,10 +135,7 @@ pub fn init() {
     info!("timer: init end");
 }
 
-/*
-* @brief: 
-*   set the next timer interrupt
-*/
+/// set the next timer interrupt
 pub fn set_next() {
     // 100Hz @ QEMU
     let timebase = 250000;
@@ -219,31 +209,7 @@ _save_context:
     # tp(x4) = hartid. DON'T change.
     # STORE x4, 4
     STORE x5, 5
-    STORE x6, 6
-    STORE x7, 7
-    STORE x8, 8
-    STORE x9, 9
-    STORE x10, 10
-    STORE x11, 11
-    STORE x12, 12
-    STORE x13, 13
-    STORE x14, 14
-    STORE x15, 15
-    STORE x16, 16
-    STORE x17, 17
-    STORE x18, 18
-    STORE x19, 19
-    STORE x20, 20
-    STORE x21, 21
-    STORE x22, 22
-    STORE x23, 23
-    STORE x24, 24
-    STORE x25, 25
-    STORE x26, 26
-    STORE x27, 27
-    STORE x28, 28
-    STORE x29, 29
-    STORE x30, 30
+    ......       # STORE X[6-30], [6-30]
     STORE x31, 31
 
     # get sp, sstatus, sepc, stval, scause
@@ -282,31 +248,7 @@ _restore_context:
     LOAD x3, 3
     # LOAD x4, 4
     LOAD x5, 5
-    LOAD x6, 6
-    LOAD x7, 7
-    LOAD x8, 8
-    LOAD x9, 9
-    LOAD x10, 10
-    LOAD x11, 11
-    LOAD x12, 12
-    LOAD x13, 13
-    LOAD x14, 14
-    LOAD x15, 15
-    LOAD x16, 16
-    LOAD x17, 17
-    LOAD x18, 18
-    LOAD x19, 19
-    LOAD x20, 20
-    LOAD x21, 21
-    LOAD x22, 22
-    LOAD x23, 23
-    LOAD x24, 24
-    LOAD x25, 25
-    LOAD x26, 26
-    LOAD x27, 27
-    LOAD x28, 28
-    LOAD x29, 29
-    LOAD x30, 30
+    ......   # LOAD X[6-30], [6-30]
     LOAD x31, 31
     # restore sp last
     LOAD x2, 2
