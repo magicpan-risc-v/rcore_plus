@@ -54,6 +54,8 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 |        2         | M, U            | Secure embedded systems                     |
 |        3         | M, S, U         | Systems running Unix-like operating systems |
 
+为了简化操作系统对具体硬件的依赖，运行在S-mode特权级的操作系统可以通过Supervisor Binary Interface (SBI)接口向运行在最底层的M-mode特权级的底层软件发出底层功能请求并得到底层软件的服务（比如设置时钟、输入字符、输出字符等）。
+
 在基于rcore on rv32的操作系统实验中，bootloader运行在M-mode特权级，rcore kernel运行在S-mode特权级，而应用程序运行在U-mode特权级。
 
 ### Berkeley Boot Loader
@@ -72,6 +74,10 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 #### bbl启动过程
 
 有兴趣的同学可以从`riscv-pk/machine/mentry.S`中的`do_reset`处开始阅读。
+
+##### bbl的SBI支持
+
+在bbl中，为简化rcore对硬件的IO访问，通过SBI接口提供了，对时钟、字符输入输出的底层支持。rcore操作系统通过调用带相应参数的`ecall`指令就获得bbl的底层服务。如同学需要了解bbl中相关的具体实现，可查看`riscv-pk/machine/mtrap.c`中实现的相关函数（如 mcall_console_putchar，mcall_console_getchar， mcall_set_timer等）即可。
 
 #### rcore启动过程
 
@@ -120,6 +126,17 @@ pub fn init() {
 pub unsafe fn enable() {
     sstatus::set_sie();
 }
+```
+##### sbi访问接口
+在`kernel\src\arch_rv32\sbi.rs`中描述了rcore访问bbl的SBI接口信息。通过其`sbi_call`函数的实现，可以看到rcore是通过调用带有相关参数的ecall指令来完成SBI访问的。目前支持的部分SBI调用功能参数如下所示：
+```
+/// sbi: 设置时钟
+const SBI_SET_TIMER: usize = 0;
+/// sbi: 输出字符
+const SBI_CONSOLE_PUTCHAR: usize = 1;
+/// sbi: 输入字符
+const SBI_CONSOLE_GETCHAR: usize = 2;
+......
 ```
 
 ##### 设置时钟中断
