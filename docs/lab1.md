@@ -1,64 +1,31 @@
-# Lab1 硬件启动与初始化
+# Lab1 系统初始化
 
 ## 实验目的
 
-操作系统是一个软件，也需要被加载到内存中运行。在这里我们将通过另外一个更底层的软件-bootloader来完成这些工作。为此，我们需要实现bootloader，能显示字符，并能从riscv machine特权级切换到riscv supervisor特权级让OS kernel执行。lab1提供了一个非常小的bootloader -- bbl和OS kernel -- rcore 。
+* 了解RISC-V指令集结构
+* 了解CPU的中断机制
+* 了解rcore启动过程
 
 ## 实验内容
 
-lab1中包含一个bootloader和一个OS kernel。这个bootloader可以加载rcore，并从riscv machine特权级切换到riscv supervisor特权级，把CPU控制权交给rcore运行。而这lab1中的rcore只是一个可以处理时钟中断和显示字符的幼儿园级别OS kernel。
-
-通过分析和实现这个bbl和rcore，读者可以了解到：
-
-- 计算机原理
-  - risc-v概述
-  - risc-v特权级
-  - risc-v中断机制
-  - 外设：串口，时钟
-- bootloader
-  - 编译运行bootloader的过程
-  - 调试bootloader的方法
-  - 启动bootloader的过程
-  - ELF执行文件的格式和加载
-  - 外设访问：在串口上显示字符串
-- rcore
-  - 编译运行rcore的过程
-  - rcore的启动过程
-  - 调试rcore的方法
-  - 函数调用关系：在汇编级了解函数调用栈的结构和处理过程
-  - 中断管理：与软件相关的中断处理
-  - 外设管理：时钟
-
-## 上下关系
-
-这是实验的开始，通过bootloader完成基本的IO操作可输出字符串，且能进行加载rcore 操作系统和执行权转移，最后在rcore中完成建立中断机制和基本IO支持，支持串口和时钟。在OS内的调试手段有限，而有了字符输出功能，我们就有了基本的软件调试手段。时钟管理为后续的进程切换等实验打下了基础。中断/异常机制的建立为后续的所有实验的可靠性奠定了基础，一是能在出现异常或系统调用时，及时了解发生了啥；二是能及时响应外设（比如时钟中断、内存访问异常），完成各种重要的操作系统功能（调度、页面替换等）。
-
-## 系列练习
-
-- 用RUST语言重写bootloader
-- 实现显示函数调用栈列表的功能
-- 描述用GDB调试rcore的过程
-- 在RISCV的M态实现对内存的PMP保护机制
+本实验主要包含两个部分，分别是rcore启动的引导程序[Berkeley Boot Loader](https://github.com/riscv/riscv-pk) (bbl)和rcore内核本身。
+我们将对RISC-V指令集结构进行初步的介绍，然后对bbl和rcore分别进行讲解。
 
 ## 实验原理
 
-本节主要讲述了RISC-V的特权属性（包括寄存器和指令），以及加电后bootloader和rcore如何启动并建立好初始环境。读者通过阅读和实践下面的内容，可对lab1中的系统软件启动、初始化、中断处理、字符输出等有一个全面的了解。
+### RISC-V Overview
 
-讲述需要注意和掌握的问题，概述一下整个实验的执行过程。。。。
+RISC-V是发源于Berkeley的开源指令集结构，从其名称就可了解到它属于RISC指令集。
+为了更好地了解RISC-V指令集，建议读者首先阅读相应的文档：
+* [User-Level ISA Specification](https://riscv.org/specifications)
+* [Privileged ISA Specification](https://riscv.org/specifications/privileged-isa)
 
-### RISC-V概述
-RISC-V是发源于Berkeley在总结多个ISA（Instruction Set Architecture ） 优缺点后而重新创建的开源ISA。对于初学RISC-V的同学，建议仔细阅读一本由David Patterson和Andrew Waterman写的入门书籍[《RISC-V 手册--一本开源指令集的指南》](http://www.riscvbook.com/chinese/)，可以对这种CPU架构/指令集/运行机理有一个全面的了解。
+#### 模块化ISA
 
-对于操作系统而言，除了一般应用用到的CPU指令外，我们还关心CPU的特权等级、特权指令、特权寄存器，只有了解了这些，才能能管理和控制整个计算机系统。
-
-#### Modular ISA
-
-RISC-V ISA是模块化的，它由一个基本指令集和一些扩展指令集组成
-
+RISC-V指令集是模块化的，它由基本整数指令集和可选的扩展指令集组成：
 * Base integer ISAs
     - RV32I
     - RV64I
-    - RV128I
 * Standard extensions
     - M: Integer **M**ultiply
     - A: **A**tomic Memory Operations
@@ -66,147 +33,287 @@ RISC-V ISA是模块化的，它由一个基本指令集和一些扩展指令集�
     - D: **D**ouble-precision Floating-point
     - G: IMAFD, **G**eneral Purpose ISA
 
-举例来说，`RV32IMA`表示支持基本整数操作和原子操作的32位RISC-V指令集。
+举例来说，`RV64IMA`表示支持整数运算和原子操作的64位RISC-V指令集。
 
-####  特权等级（Privilege Levels）
-RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对应数字越小，权限越低
+#### 特权级设计
+
+RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对应数字越小，权限越低。
 
 | Level | Encoding |       Name       | Abbreviation |
 | :---: | :------: | :--------------: | :----------: |
 |   0   |    00    | User/Application |      U       |
 |   1   |    01    |    Supervisor    |      S       |
-|   2   |    10    |    Hypervisor    |      H       |
+|   2   |    10    |    *Reserved*    |              |
 |   3   |    11    |     Machine      |      M       |
 
-一个RISC-V的实现并不要求同时支持这四种特权级，可接受的特权级组合如下
+一个RISC-V指令集的CPU可以只实现一部分特权级来适应应用的需求，一些可能的特权级组合如下：
 
-| Number of levels | Supported Modes | Intended Usage                           |
-| :--------------: | --------------- | ---------------------------------------- |
-|        1         | M               | Simple embedded systems                  |
-|        2         | M, U            | Secure embedded systems                  |
+| Number of levels | Supported Modes | Intended Usage                              |
+| :--------------: | --------------- | ------------------------------------------- |
+|        1         | M               | Simple embedded systems                     |
+|        2         | M, U            | Secure embedded systems                     |
 |        3         | M, S, U         | Systems running Unix-like operating systems |
-|        4         | M, H, S, U      | Systems running Type-1 hypervisors       |
 
-#### 特权相关寄存器（Control and Status Registers）
+### Berkeley Boot Loader
 
-RISC-V通过访问各特权等级的Control and Status Registers (CSRs)来完成特权操作，其中应当注意的有以下几个
+bbl是运行在M态的特殊程序，负责对底层硬件的控制，并向运行在S态的操作系统提供相应的服务。
+bbl的职责是进行初始化工作并将控制权转交给内核，并通过Supervisor Binary Interface (SBI)为操作系统提供基础的服务。
 
-| Name     | Description                              |
-| -------- | ---------------------------------------- |
-| sstatus  | Supervisor status register               |
-| sie      | Supervisor interrupt-enable register     |
-| stvec    | Supervisor trap handler base address     |
-| sscratch | Scratch register for supervisor trap handlers |
-| sepc     | Supervisor exception program counter     |
-| scause   | Supervisor trap cause                    |
-| sbadaddr | Supervisor bad address                   |
-| sip      | Supervisor interrupt pending             |
-| sptbr    | Page-table base register                 |
-| mstatus  | Machine status register                  |
-| medeleg  | Machine exception delegation register    |
-| mideleg  | Machine interrupt delegation register    |
-| mie      | Machine interrupt-enable register        |
-| mtvec    | Machine trap-handler base address        |
-| mscratch | Scratch register for machine trap handlers |
-| mepc     | Machine exception program counter        |
-| mcause   | Machine trap cause                       |
-| mbadaddr | Machine bad address                      |
-| mip      | Machine interrupt pending                |
+#### rcore的编译
 
-#### 特权相关CSR 访问指令
+rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录下。
+两者的编译是分开进行的，rcore编译完成后会生成`kernel/target/riscv32/debug/rcore`文件。
+然后在编译bbl的过程中，该文件会被嵌入到bbl的二进制文件中，读者可以检查`riscv-pk/bbl/payload.S`文件，我们使用了GCC提供的`.incbin`汇编命令将`BBL_PAYLOAD`所指向的文件包含在了生成的程序中。
 
-RISC-V ISA中提供了一些修改CSR的原子操作指令来完成各种特权操作，下面介绍之后常用到的`csrrw`指令
+这样做是因为我们使用的RISC-V模拟器QEMU不支持磁盘的模拟，因此我们只能将需要加载的内核文件放入引导程序之中，再由引导程序将内核释放到内存中。
 
-```nasm
-# Atomic Read & Write Bit
-cssrw rd, csr, rs
-```
+#### bbl启动过程
 
-语义上等价的C++函数如下
+有兴趣的同学可以从`riscv-pk/machine/mentry.S`中的`do_reset`处开始阅读。
 
-```cpp
-void cssrw(unsigned int& rd, unsigned int& csr, unsigned int& rs) {
-  unsigned int tmp = rs;
-  rd = csr;
-  csr = tmp;
-}
-```
-语义上等价的RUST函数如下
+#### rcore启动过程
+
+bbl在完成初始化工作后，会将处理器切换到S态同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。
+rcore之后要完成的主要任务包括：
+1. 设置中断向量
+2. 设置时钟中断
+4. 进行中断处理
+
+与中断相关的代码主要在`kernel/src/arch_rv32/interrupt.rs`文件中。
+
+##### 设置中断向量
+
+`interrupt.rs`中的`init`函数完成了设置中断向量的任务。
+
 ```rust
-fn cssrw(rd : &usize, csr : &usize, rs : &usize) {
-  tmp = rs;
-  rd = csr;
-  csr = tmp;
+/*
+* @brief:
+*   initialize the interrupt status
+*/
+pub fn init() {
+    extern {
+        fn __alltraps();
+    }
+    unsafe {
+        // Set sscratch register to 0, indicating to exception vector that we are
+        // presently executing in the kernel
+        sscratch::write(0);
+        // Set the exception vector address
+        stvec::write(__alltraps as usize, stvec::TrapMode::Direct);
+        // Enable IPI
+        sie::set_ssoft();
+        // Enable serial interrupt
+        sie::set_sext();
+    }
+    info!("interrupt: init end");
 }
 ```
 
-几种有趣的用法如下
+其中将中断向量基地址写入`stvec`寄存器的语句为`stvec::write(__alltraps as usize, stvec::TrapMode::Direct)`。
+此处`__alltraps`为函数指针，实际函数位于`kernel/src/arch_rv32/boot/trap.asm`文件中。
+之后如果发生了中断，那么处理器就会自动跳转到`__alltraps`进行中断处理。
 
-```nasm
-# csr = rs
-cssrw x0, csr, rs
+另外，`interrupt::enable`函数能够使能中断。
 
-# csr = 0
-cssrw x0, csr, x0
-
-# rd = csr, csr = 0
-cssrw rd, csr, x0
-
-# swap rd and csr
-cssrw rd, csr, rd
+```rust
+/*
+* @brief:
+*   enable interrupt
+*/
+#[inline(always)]
+pub unsafe fn enable() {
+    sstatus::set_sie();
+}
 ```
-#### 外设控制：串口和时钟
 
-。。。
+##### 设置时钟中断
 
-### bootloader启动过程
+`kernel/src/arch_rv32/timer.rs`中的`init`函数完成了初始化时钟中断的工作。
 
-。。。
+```rust
+/*
+* @brief: 
+*   enable supervisor timer interrupt and set next timer interrupt
+*/
+pub fn init() {
+    // Enable supervisor timer interrupt
+    unsafe { sie::set_stimer(); }
+    set_next();
+    info!("timer: init end");
+}
 
-#### 编译运行bootloader的过程
+/*
+* @brief: 
+*   set the next timer interrupt
+*/
+pub fn set_next() {
+    // 100Hz @ QEMU
+    let timebase = 250000;
+    sbi::set_timer(get_cycle() + timebase);
+}
+```
 
-。。。
+`sbi::set_timer(get_cycle() + timebase)`将下一次触发时钟中断的时间设置为`timebase`个周期后。
 
-#### 调试bootloader的方法
+##### 进行中断处理
 
-。。。
+我们已经知道中断触发后，处理器会立即跳转到`__alltraps`处，此时，为了进行中断处理，我们需要进行以下任务：
+1. 中断现场的保存
+2. 中断的处理
+3. 中断现场的恢复
 
-#### 启动bootloader的过程
+在`kernel/src/arch_rv32/boot/trap.asm`文件中`SAVE_ALL`宏完成了中断现场的保存操作，`RESTORE_ALL`宏完成了中断现场的回复工作。
 
-。。。
+```asm
+    .section .text
+    .globl __alltraps
+__alltraps:
+    SAVE_ALL
+    mv a0, sp
+    jal rust_trap
+    .globl __trapret
+__trapret:
+    RESTORE_ALL
+    # return from supervisor call
+    sret
+```
 
-#### 加载OS的过程
+我们提到的“中断现场”正式名称是中断帧，它包含了处理中断所需要的所有信息。
+一个中断帧是如下定义的结构体：
+```rust
+/// Saved registers on a trap.
+#[derive(Clone)]
+#[repr(C)]
+pub struct TrapFrame {
+    /// General Registers
+    pub x: [usize; 32],
+    /// Supervisor Status
+    pub sstatus: sstatus::Sstatus,
+    /// Supervisor Exception Program Counter: save the trap virtual address
+    pub sepc: usize,
+    /// Supervisor Trap Value
+    pub stval: usize,
+    /// Supervisor Cause: record the cause of exception/interrupt/trap
+    pub scause: scause::Scause,
+}
+```
 
-。。。
+`SAVE_ALL`宏定义如下，可以看到我们将`x1`-`x31`、`sstatus`、`sepc`、`stval`和`scause`依次保存到了栈上，从而形成了一个`TrapFrame`的结构，我们随后将指向该结构体的栈指针`sp`保存到`a0`中作为中断处理函数`rust_trap`的参数。
 
-#### 外设访问：在串口上显示字符串
+```asm
+.macro SAVE_ALL
+    # If coming from userspace, preserve the user stack pointer and load
+    # the kernel stack pointer. If we came from the kernel, sscratch
+    # will contain 0, and we should continue on the current stack.
+    csrrw sp, sscratch, sp
+    bnez sp, _save_context
+_restore_kernel_sp:
+    csrr sp, sscratch
+    # sscratch = previous-sp, sp = kernel-sp
+_save_context:
+    # provide room for trap frame
+    addi sp, sp, -36 * XLENB
+    # save x registers except x2 (sp)
+    STORE x1, 1
+    STORE x3, 3
+    # tp(x4) = hartid. DON'T change.
+    # STORE x4, 4
+    STORE x5, 5
+    STORE x6, 6
+    STORE x7, 7
+    STORE x8, 8
+    STORE x9, 9
+    STORE x10, 10
+    STORE x11, 11
+    STORE x12, 12
+    STORE x13, 13
+    STORE x14, 14
+    STORE x15, 15
+    STORE x16, 16
+    STORE x17, 17
+    STORE x18, 18
+    STORE x19, 19
+    STORE x20, 20
+    STORE x21, 21
+    STORE x22, 22
+    STORE x23, 23
+    STORE x24, 24
+    STORE x25, 25
+    STORE x26, 26
+    STORE x27, 27
+    STORE x28, 28
+    STORE x29, 29
+    STORE x30, 30
+    STORE x31, 31
 
-。。。
+    # get sp, sstatus, sepc, stval, scause
+    # set sscratch = 0
+    csrrw s0, sscratch, x0
+    csrr s1, sstatus
+    csrr s2, sepc
+    csrr s3, stval
+    csrr s4, scause
+    # store sp, sstatus, sepc, sbadvaddr, scause
+    STORE s0, 2
+    STORE s1, 32
+    STORE s2, 33
+    STORE s3, 34
+    STORE s4, 35
+.endm
+```
 
-### rcore启动过程
+`RESTORE_ALL`宏定义如下，它将栈上保存的中断帧的内容恢复到寄存器中：
+```asm
+.macro RESTORE_ALL
+    LOAD s1, 32             # s1 = sstatus
+    LOAD s2, 33             # s2 = sepc
+    andi s0, s1, 1 << 8         # sstatus.SPP = 1
+    bnez s0, _restore_context   # s0 = back to kernel?
+_save_kernel_sp:
+    addi s0, sp, 36*XLENB
+    csrw sscratch, s0         # sscratch = kernel-sp
+_restore_context:
+    # restore sstatus, sepc
+    csrw sstatus, s1
+    csrw sepc, s2
 
-#### 编译运行rcore的过程
+    # restore x registers except x2 (sp)
+    LOAD x1, 1
+    LOAD x3, 3
+    # LOAD x4, 4
+    LOAD x5, 5
+    LOAD x6, 6
+    LOAD x7, 7
+    LOAD x8, 8
+    LOAD x9, 9
+    LOAD x10, 10
+    LOAD x11, 11
+    LOAD x12, 12
+    LOAD x13, 13
+    LOAD x14, 14
+    LOAD x15, 15
+    LOAD x16, 16
+    LOAD x17, 17
+    LOAD x18, 18
+    LOAD x19, 19
+    LOAD x20, 20
+    LOAD x21, 21
+    LOAD x22, 22
+    LOAD x23, 23
+    LOAD x24, 24
+    LOAD x25, 25
+    LOAD x26, 26
+    LOAD x27, 27
+    LOAD x28, 28
+    LOAD x29, 29
+    LOAD x30, 30
+    LOAD x31, 31
+    # restore sp last
+    LOAD x2, 2
+.endm
+```
 
-。。。
-
-#### rcore的启动过程
-
-。。。
-
-#### 调试rcore的方法
-
-。。。
-
-#### 函数调用关系：在汇编级了解函数调用栈的结构和处理过程
-
-。。。
-
-#### 中断管理：与软件相关的中断处理
-
-。。。
-
-#### 外设管理：时钟
-
-。。。
-
-### 多核启动和初始化过程
+我们在保存和恢复中断现场时都用到了`sscratch`寄存器，其实理由很简单。
+以保存中断帧为例，为了保存通用寄存器到内核栈顶部，我们首先至少要写一个寄存器。
+因此，RISC-V指令集为我们提供了一个专门用来处理此种情况的`sscratch`寄存器。
+通过使用`sscratch`寄存器，我们还能够实现嵌套中断的功能，感兴趣的同学可以参考[issue #2](https://github.com/oscourse-tsinghua/rcore_plus/issues/2)。
