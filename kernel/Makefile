@@ -82,10 +82,10 @@ objdump := $(prefix)objdump
 objcopy := $(prefix)objcopy
 cc := $(prefix)gcc
 as := $(prefix)as
-gdb := $(prefix)gdb
+gdb := gdb
 export CC=$(cc)
 
-.PHONY: all clean run build asm doc justrun debug kernel sfsimg install
+.PHONY: all clean run build asm doc justrun debug kernel sfsimg install runnet
 
 all: kernel
 
@@ -97,9 +97,15 @@ doc:
 	@cargo rustdoc --verbose -- --document-private-items
 
 run: build justrun
+runnet: build justrunnet
 
 justrun: build
 	@qemu-system-$(arch) $(qemu_opts)
+
+justrunnet: build
+	@sudo qemu-system-$(arch) $(qemu_opts) \
+		-netdev type=tap,id=net0,script=no,downscript=no \
+		-device virtio-net-device,netdev=net0 \
 
 debug: $(kernel) $(bin)
 	@qemu-system-$(arch) $(qemu_opts) -s -S &
@@ -125,6 +131,7 @@ $(bin): kernel
 		--with-arch=rv32imac \
 		--disable-fp-emulation \
 		--host=riscv64-unknown-elf \
+		--enable-print-device-tree \
 		--with-payload=$(abspath $(kernel)) && \
 	make -j32 && \
 	cp bbl $(abspath $@)

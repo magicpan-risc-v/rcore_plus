@@ -9,7 +9,7 @@ use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
 * @brief:
 *   Init the mermory management module, allow memory access and set up page table and init heap and frame allocator
 */
-pub fn init() {
+pub fn init(dtb: usize) {
     #[repr(align(4096))]  // align the PageData struct to 4096 bytes
     struct PageData([u8; PAGE_SIZE]);
     static PAGE_TABLE_ROOT: PageData = PageData([0; PAGE_SIZE]);
@@ -23,7 +23,7 @@ pub fn init() {
     init_heap();
     info!("init_heap end");
     // remap the kernel use 4K page
-    remap_the_kernel();
+    remap_the_kernel(dtb);
     info!("remap_the_kernel end");
 }
 
@@ -64,7 +64,7 @@ fn init_frame_allocator() {
 }
 
 /// Remap the kernel memory address with 4K page recorded in p1 page table
-fn remap_the_kernel() {
+fn remap_the_kernel(dtb: usize) {
     let offset = -(super::consts::KERN_VA_BASE as isize);
     let mut ms = MemorySet::new_bare();
     ms.push(stext as usize, etext as usize, Linear::new(offset, MemoryAttr::default().execute().readonly()), "text");
@@ -72,6 +72,7 @@ fn remap_the_kernel() {
     ms.push(srodata as usize, erodata as usize, Linear::new(offset, MemoryAttr::default().readonly()), "rodata");
     ms.push(bootstack as usize, bootstacktop as usize, Linear::new(offset, MemoryAttr::default()), "stack");
     ms.push(sbss as usize, ebss as usize, Linear::new(offset, MemoryAttr::default()), "bss");
+    ms.push(dtb, dtb + super::consts::MAX_DTB_SIZE, Linear::new(offset, MemoryAttr::default()), "dts");
     unsafe { ms.activate(); }
     unsafe { SATP = ms.token(); }
     mem::forget(ms);
