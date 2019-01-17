@@ -8,6 +8,7 @@ pub mod cpu;
 mod sbi;
 mod riscv;
 mod device_tree;
+mod drivers;
 
 #[no_mangle]
 pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: usize) -> ! {
