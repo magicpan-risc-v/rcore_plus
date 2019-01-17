@@ -43,7 +43,7 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 | :---: | :------: | :--------------: | :----------: |
 |   0   |    00    | User/Application |      U       |
 |   1   |    01    |    Supervisor    |      S       |
-|   2   |    10    |    *Reserved*    |   H(next)    |
+|   2   |    10    |    *Reserved*    |              |
 |   3   |    11    |     Machine      |      M       |
 
 一个RISC-V指令集的CPU可以只实现一部分特权级来适应应用的需求，一些可能的特权级组合如下：
@@ -54,13 +54,13 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 |        2         | M, U            | Secure embedded systems                     |
 |        3         | M, S, U         | Systems running Unix-like operating systems |
 
-为了简化操作系统对具体硬件的依赖，运行在S-mode特权级的操作系统可以通过Supervisor Binary Interface (SBI)接口向运行在最底层的M-mode特权级的底层软件发出底层功能请求并得到底层软件的服务（比如设置时钟、输入字符、输出字符等）。
+为了简化操作系统对具体硬件的依赖，运行在S-mode的操作系统可以通过Supervisor Binary Interface (SBI)接口向运行在最底层的M-mode的底层软件发出底层功能请求并得到底层软件的服务（比如设置时钟、输入字符、输出字符等）。
 
-在基于rcore on rv32的操作系统实验中，bootloader运行在M-mode特权级，rcore kernel运行在S-mode特权级，而应用程序运行在U-mode特权级。
+在基于rcore on rv32的操作系统实验中，bootloader运行在M-mode，rcore kernel运行在S-mode，而应用程序运行在U-mode。
 
 ### Berkeley Boot Loader
 
-bbl是运行在M-mode特权级的特殊程序，负责对底层硬件的控制，并向运行在S-mode特权级的操作系统提供相应的服务。
+bbl是运行在M-mode的特殊程序，负责对底层硬件的控制，并向运行在S-mode的操作系统提供相应的服务。
 bbl的职责是进行初始化工作并将控制权转交给内核，并通过Supervisor Binary Interface (SBI)为操作系统提供基础的服务。
 
 #### rcore的编译
@@ -81,7 +81,7 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 
 #### rcore启动过程
 
-bbl在完成初始化工作后，会将处理器从M-mode特权级切换到S-mode特权级同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。`kernel/src/arch_rv32/mod.rs`的rust_main函数是完成初始化过程的主体函数。
+bbl在完成初始化工作后，会将处理器从M-mode切换到S-mode同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。`kernel/src/arch_rv32/mod.rs`的rust_main函数是完成初始化过程的主体函数。
 
 rcore之后要完成的主要任务包括：
 
