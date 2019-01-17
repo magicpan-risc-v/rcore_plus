@@ -43,7 +43,7 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 | :---: | :------: | :--------------: | :----------: |
 |   0   |    00    | User/Application |      U       |
 |   1   |    01    |    Supervisor    |      S       |
-|   2   |    10    |    *Reserved*    |              |
+|   2   |    10    |    *Reserved*    |   H(next)    |
 |   3   |    11    |     Machine      |      M       |
 
 一个RISC-V指令集的CPU可以只实现一部分特权级来适应应用的需求，一些可能的特权级组合如下：
@@ -81,8 +81,10 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 
 #### rcore启动过程
 
-bbl在完成初始化工作后，会将处理器从M-mode特权级切换到S-mode特权级同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。
+bbl在完成初始化工作后，会将处理器从M-mode特权级切换到S-mode特权级同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。`kernel/src/arch_rv32/mod.rs`的rust_main函数是完成初始化过程的主体函数。
+
 rcore之后要完成的主要任务包括：
+
 1. 设置中断向量
 2. 设置时钟中断
 4. 进行中断处理
@@ -127,7 +129,7 @@ pub unsafe fn enable() {
     sstatus::set_sie();
 }
 ```
-##### sbi访问接口
+##### SBI访问接口
 在`kernel\src\arch_rv32\sbi.rs`中描述了rcore访问bbl的SBI接口信息。通过其`sbi_call`函数的实现，可以看到rcore是通过调用带有相关参数的ecall指令来完成SBI访问的。目前支持的部分SBI调用功能参数如下所示：
 ```
 /// sbi: 设置时钟
