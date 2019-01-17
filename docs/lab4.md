@@ -220,7 +220,7 @@ trap_table:
 ```
 
 中断触发后，会根据中断号`mcause`跳转到表中相应的函数进行处理。
-例如从S-mode特权级发出的`ecall`对应的`mcause`为9，因此将会执行`mcall_trap`函数进行相应的处理。
+例如从S-mode发出的`ecall`对应的`mcause`为9，因此将会执行`mcall_trap`函数进行相应的处理。
 
 ```c
 void mcall_trap(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc)
@@ -271,7 +271,7 @@ send_ipi:
 }
 ```
 
-在完成lab5后，读者将会发现bbl处理来自S-mode特权级的`ecall`的流程和rcore处理来自U-mode特权级的ecall流程相似。
+在完成lab5后，读者将会发现bbl处理来自S-mode的`ecall`的流程和rcore处理来自U-mode的ecall流程相似。
 `mcall_trap`函数的处理过程如下：
 1. `write_csr(mepc, mepc + 4)`使得中断返回后不再触发`ecall`语句，而是从下一条语句接着执行
 2. 根据寄存器中保存的信息判断操作系统请求的服务，并进行相应的处理
