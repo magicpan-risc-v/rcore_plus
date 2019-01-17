@@ -18,12 +18,12 @@ pub fn get_cycle() -> u64 {
 pub fn init() {
     // Enable supervisor timer interrupt
     unsafe { sie::set_stimer(); }
-    // set the next time interval
+    // set the next timer interrupt
     set_next();
     info!("timer: init end");
 }
 
-/// set the next time interval
+/// set the next timer interrupt
 pub fn set_next() {
     // 100Hz @ QEMU
     let timebase = 250000;

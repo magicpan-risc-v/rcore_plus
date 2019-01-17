@@ -130,7 +130,7 @@ pub unsafe fn enable() {
 }
 ```
 ##### SBI访问接口
-在`kernel\src\arch_rv32\sbi.rs`中描述了rcore访问bbl的SBI接口信息。通过其`sbi_call`函数的实现，可以看到rcore是通过调用带有相关参数的ecall指令来完成SBI访问的。目前支持的部分SBI调用功能参数如下所示：
+在`kernel/src/arch_rv32/sbi.rs`中描述了rcore访问bbl的SBI接口信息。通过其`sbi_call`函数的实现，可以看到rcore是通过调用带有相关参数的ecall指令来完成SBI访问的。目前支持的部分SBI调用功能参数如下所示：
 ```
 /// sbi: 设置时钟
 const SBI_SET_TIMER: usize = 0;
