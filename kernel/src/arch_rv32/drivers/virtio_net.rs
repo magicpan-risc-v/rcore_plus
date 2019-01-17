@@ -1,9 +1,11 @@
 use core::slice;
+use core::mem::size_of;
 use device_tree::{DeviceTree, Node};
 use device_tree::util::SliceRead;
-use crate::memory::active_table;
+use crate::memory::{active_table, alloc_frame};
 use rcore_memory::paging::PageTable;
 use volatile::{Volatile, ReadOnly, WriteOnly};
+use rcore_memory::PAGE_SIZE;
 
 #[repr(packed)]
 #[derive(Debug)]
@@ -88,11 +90,73 @@ bitflags! {
     }
 }
 
+bitflags! {
+    struct VirtIONetworkStatus : u16 {
+        const LINK_UP = 1;
+        const ANNOUNCE = 2;
+    }
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIONetworkConfig {
+    mac: [u8; 6],
+    status: ReadOnly<u16>
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIOVirtqueueDesc {
+    addr: Volatile<u64>,
+    len: Volatile<u32>,
+    flags: Volatile<u16>,
+    next: Volatile<u16>
+}
+
+bitflags! {
+    struct VirtIOVirtqueueFlag {
+        const NEXT = 1;
+        const WRITE = 2;
+        const INDIRECT = 4;
+    }
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIOVirtqueueAvailableRing {
+    flags: Volatile<u16>,
+    idx: Volatile<u16>,
+    ring: [Volatile<u16>; 1], // actual size: queue_size
+    used_event: Volatile<u16>
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIOVirtqueueUsedElem {
+    id: Volatile<u32>,
+    len: Volatile<u32>
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIOVirtqueueUsed {
+    flags: Volatile<u16>,
+    idx: Volatile<u16>,
+    ring: [VirtIOVirtqueueUsedElem; 1], // actual size: queue_size
+    avail_event: Volatile<u16>
+}
+
+// virtio 2.4.2 Legacy Interfaces: A Note on Virtqueue Layout
+fn virtqueue_size(num: usize, align: usize) -> usize {
+    (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & ~align) +
+        (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & ~align) +
+}
+
 pub fn virtio_probe(node: &Node){
     if let Some(reg) = node.prop_raw("reg") {
         let from = reg.as_slice().read_be_u64(0).unwrap();
         let size = reg.as_slice().read_be_u64(8).unwrap();
-        // assuming one 4k page
+        // assuming one page
         active_table().map(from as usize, from as usize);
         let data = unsafe { slice::from_raw_parts(from as *const u8, size as usize)};
         let mut header = unsafe { &mut *(from as *mut VirtIOHeader) };
@@ -102,6 +166,8 @@ pub fn virtio_probe(node: &Node){
         // only support legacy device
         if magic == 0x74726976 && version == 1 && device_id != 0 { // "virt" magic
             println!("Detected virtio net device with vendor id {:#X}", header.vendor_id.read());
+            // virtio 3.1.1 Device Initialization
+            header.status.write(0);
             header.status.write(VirtIODeviceStatus::ACKNOWLEDGE.bits());
             if device_id == 1 { // net device
                 header.status.write(VirtIODeviceStatus::DRIVER.bits());
@@ -111,14 +177,43 @@ pub fn virtio_probe(node: &Node){
                 header.device_features_sel.write(1); // device features [32, 64)
                 device_features_bits = device_features_bits + ((header.device_features.read() as u64) << 32);
                 let device_features = VirtIONetFeature::from_bits_truncate(device_features_bits);
-                println!("device features {:?}", device_features);
+                println!("Device features {:?}", device_features);
                 let supported_features = VirtIONetFeature::MAC | VirtIONetFeature::STATUS;
                 let driver_features = (device_features & supported_features).bits();
                 header.driver_features_sel.write(0); // driver features [0, 32)
                 header.driver_features.write((driver_features & 0xFFFFFFFF) as u32);
                 header.driver_features_sel.write(1); // driver features [32, 64)
                 header.driver_features.write(((driver_features & 0xFFFFFFFF00000000) >> 32) as u32);
-                header.guest_page_size.write(4096); // 4K
+
+                // virtio 2.3.1 Driver Requirements: Device Configuration Space
+                // read configuration space
+                let mut mac: [u8; 6];
+                let mut status: VirtIONetworkStatus;
+                loop {
+                    let before_config_generation = header.config_generation.read();
+                    let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIONetworkConfig) };
+                    mac = config.mac;
+                    status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
+
+                    let after_config_generation = header.config_generation.read();
+                    if before_config_generation == after_config_generation {
+                        break
+                    }
+                }
+                println!("Got MAC address {:?} and status {:?}", mac, status);
+
+                // virtio 4.2.4 Legacy interface
+                // configure two virtqueues: ingress and egress
+                header.guest_page_size.write(PAGE_SIZE); // one page
+                for queue in 0..2 {
+                    header.queue_sel.write(queue);
+                    assert_eq!(header.queue_pfn.read(), 0); // not in use
+                    let queue_num = header.queue_num_max.read();
+                    assert!(queue_num > 0); // queue available
+                    let size = virtqueue_size(queue_num, PAGE_SIZE);
+                    assert!(size % PAGE_SIZE == 0);
+                    // alloc continuous pages
+                }
             }
         } else {
             active_table().unmap(from as usize);
