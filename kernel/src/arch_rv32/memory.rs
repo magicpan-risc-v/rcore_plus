@@ -1,3 +1,5 @@
+//! rv32 mermory management module
+
 use core::mem;
 use super::riscv::{addr::*, register::sstatus};
 use rcore_memory::PAGE_SIZE;
@@ -5,10 +7,9 @@ use log::*;
 use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};
 use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
 
-/*
-* @brief:
-*   Init the mermory management module, allow memory access and set up page table and init heap and frame allocator
-*/
+
+/// Init the mermory management module
+/// allow memory access and set up page table and init heap and frame allocator
 pub fn init() {
     #[repr(align(4096))]  // align the PageData struct to 4096 bytes
     struct PageData([u8; PAGE_SIZE]);
@@ -29,15 +30,13 @@ pub fn init() {
 
 pub fn init_other() {
     unsafe {
-        sstatus::set_sum();         // Allow user memory access
+        sstatus::set_sum();  // Allow user memory access
         asm!("csrw 0x180, $0; sfence.vma" :: "r"(SATP) :: "volatile");
     }
 }
 
-/*
-* @brief:
-*   Init frame allocator, here use a BitAlloc implemented by segment tree.
-*/
+
+/// Init frame allocator, here use a BitAlloc implemented by segment tree.
 fn init_frame_allocator() {
     use bit_allocator::BitAlloc;
     use core::ops::Range;
@@ -46,15 +45,9 @@ fn init_frame_allocator() {
     let range = to_range((end as usize) - KERN_VA_BASE + PAGE_SIZE, MEMORY_END);
     ba.insert(range);
 
-    /*
-    * @param:
-    *   start: start address
-    *   end: end address
-    * @brief:
-    *   transform the memory address to the page number
-    * @retval:
-    *   the page number range from start address to end address
-    */
+    /// transform the memory address to the page number
+    /// param: start: start address end: end address
+    /// retval: the page number range from start address to end address
     fn to_range(start: usize, end: usize) -> Range<usize> {
         let page_start = (start - MEMORY_OFFSET) / PAGE_SIZE;
         let page_end = (end - MEMORY_OFFSET - 1) / PAGE_SIZE + 1;
@@ -81,6 +74,7 @@ fn remap_the_kernel() {
 // Other cores load it later.
 static mut SATP: usize = 0;
 
+/// clear bss part of rcore
 pub unsafe fn clear_bss() {
     let start = sbss as usize;
     let end = ebss as usize;

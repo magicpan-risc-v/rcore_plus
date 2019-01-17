@@ -152,7 +152,7 @@ impl InactivePageTable for InactivePageTable0 {
         let frame = Frame::of_addr(PhysAddr::new(target as u32));
         active_table().with_temporary_map(target, |_, table: &mut RvPageTable| {
             table.zero();
-            table.set_recursive(RECURSIVE_INDEX, frame.clone());
+            table.set_recursive(RECURSIVE_INDEX, frame);
         });
         InactivePageTable0 { root_frame: frame }
     }
@@ -209,10 +209,10 @@ impl InactivePageTable for InactivePageTable0 {
     fn edit<T>(&mut self, f: impl FnOnce(&mut Self::Active) -> T) -> T {
         let target = satp::read().frame().start_address().as_u32() as usize;
         active_table().with_temporary_map(target, |active_table, root_table: &mut RvPageTable| {
-            let backup = root_table[RECURSIVE_INDEX].clone();
+            let backup = root_table[RECURSIVE_INDEX];
 
             // overwrite recursive mapping
-            root_table[RECURSIVE_INDEX].set(self.root_frame.clone(), EF::VALID);
+            root_table[RECURSIVE_INDEX].set(self.root_frame, EF::VALID);
             sfence_vma_all();
 
             // execute f in the new context
@@ -252,7 +252,7 @@ impl FrameDeallocator for FrameAllocatorForRiscv {
 pub fn setup_page_table(frame: Frame) {
     let p2 = unsafe { &mut *(frame.start_address().as_u32() as *mut RvPageTable) };
     p2.zero();
-    p2.set_recursive(RECURSIVE_INDEX, frame.clone());
+    p2.set_recursive(RECURSIVE_INDEX, frame);
 
     // Set kernel identity map
     // 0x10000000 ~ 1K area

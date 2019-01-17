@@ -94,11 +94,3 @@ pub fn init_heap() {
 
 /// Allocator for the rest memory space on NO-MMU case.
 pub static MEMORY_ALLOCATOR: LockedHeap = LockedHeap::empty();
-
-//pub mod test {
-//    pub fn cow() {
-//        use super::*;
-//        use rcore_memory::cow::test::test_with;
-//        test_with(&mut active_table());
-//    }
-//}

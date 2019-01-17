@@ -120,7 +120,7 @@ pub fn init() {
 此处`__alltraps`为函数指针，实际函数位于`kernel/src/arch_rv32/boot/trap.asm`文件中。
 之后如果发生了中断，那么处理器就会自动跳转到`__alltraps`进行中断处理。
 
-另外，`interrupt::enable`函数能够使能中断。
+另外，`interrupt::enable`函数能够使能中断。sstatus寄存器的IE 位使能或者禁用S-mode下的所有中断。当 IE 被清零时,当处于S-mode时中断并不被处理。操作系统可以使用 sie 寄存器禁用单个中断源。
 
 ```rust
 /// enable interrupt
@@ -154,7 +154,7 @@ pub fn init() {
     info!("timer: init end");
 }
 
-/// set the next timer interrupt
+/// set the next time interval
 pub fn set_next() {
     // 100Hz @ QEMU
     let timebase = 250000;
@@ -187,7 +187,7 @@ __trapret:
     sret
 ```
 
-我们提到的“中断现场”正式名称是中断帧，它包含了处理中断所需要的所有信息。
+我们提到的“中断现场”正式名称是中断帧 TrapFrame，它包含了处理中断所需要的所有信息，定义在kernel/src/arch_rv32/context.rs中。
 一个中断帧是如下定义的结构体：
 ```rust
 /// Saved registers on a trap.
@@ -207,7 +207,7 @@ pub struct TrapFrame {
 }
 ```
 
-`SAVE_ALL`宏定义如下，可以看到我们将`x1`-`x31`、`sstatus`、`sepc`、`stval`和`scause`依次保存到了栈上，从而形成了一个`TrapFrame`的结构，我们随后将指向该结构体的栈指针`sp`保存到`a0`中作为中断处理函数`rust_trap`的参数。
+`SAVE_ALL`宏定义（kernel/src/arch_rv32/boot/trap.asm）如下，可以看到我们将`x1`-`x31`、`sstatus`、`sepc`、`stval`和`scause`依次保存到了栈上，从而形成了一个`TrapFrame`的结构，我们随后将指向该结构体的栈指针`sp`保存到`a0`中作为中断处理函数`rust_trap`的参数。
 
 ```asm
 .macro SAVE_ALL
@@ -275,6 +275,6 @@ _restore_context:
 ```
 
 我们在保存和恢复中断现场时都用到了`sscratch`寄存器，其实理由很简单。
-以保存中断帧为例，为了保存通用寄存器到内核栈顶部，我们首先至少要写一个寄存器。
+以保存中断帧为例，为了保存通用寄存器(sp也是一个通用寄存器)到内核栈顶部，我们首先至少要写一个寄存器。
 因此，RISC-V指令集为我们提供了一个专门用来处理此种情况的`sscratch`寄存器。
 通过使用`sscratch`寄存器，我们还能够实现嵌套中断的功能，感兴趣的同学可以参考[issue #2](https://github.com/oscourse-tsinghua/rcore_plus/issues/2)。
