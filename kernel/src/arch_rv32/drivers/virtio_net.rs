@@ -1,41 +1,48 @@
 use core::slice;
 use core::mem::size_of;
+use alloc::alloc::{Layout, GlobalAlloc};
 use device_tree::{DeviceTree, Node};
 use device_tree::util::SliceRead;
 use crate::memory::{active_table, alloc_frame};
 use rcore_memory::paging::PageTable;
 use volatile::{Volatile, ReadOnly, WriteOnly};
 use rcore_memory::PAGE_SIZE;
+use crate::HEAP_ALLOCATOR;
+use crate::process::processor;
+use crate::process::context::Process;
+use core::time::Duration;
+use crate::thread;
 
+// virtio 4.2.4 Legacy interface
 #[repr(packed)]
 #[derive(Debug)]
 struct VirtIOHeader {
-    magic: ReadOnly<u32>,
-    version: ReadOnly<u32>,
-    device_id: ReadOnly<u32>,
-    vendor_id: ReadOnly<u32>,
-    device_features: ReadOnly<u32>,
-    device_features_sel: WriteOnly<u32>,
-    __r1: [ReadOnly<u32>; 2],
-    driver_features: WriteOnly<u32>,
-    driver_features_sel: WriteOnly<u32>,
-    guest_page_size: WriteOnly<u32>,
+    magic: ReadOnly<u32>, // 0x000
+    version: ReadOnly<u32>, // 0x004
+    device_id: ReadOnly<u32>, // 0x008
+    vendor_id: ReadOnly<u32>, // 0x00c
+    device_features: ReadOnly<u32>, // 0x010
+    device_features_sel: WriteOnly<u32>, // 0x014
+    __r1: [ReadOnly<u32>; 2], 
+    driver_features: WriteOnly<u32>, // 0x020
+    driver_features_sel: WriteOnly<u32>, // 0x024
+    guest_page_size: WriteOnly<u32>, // 0x028
     __r2: ReadOnly<u32>,
-    queue_sel: WriteOnly<u32>,
-    queue_num_max: ReadOnly<u32>,
-    queue_num: WriteOnly<u32>,
-    queue_align: WriteOnly<u32>,
-    queue_pfn: Volatile<u32>,
-    queue_ready: Volatile<u32>,
+    queue_sel: WriteOnly<u32>, // 0x030
+    queue_num_max: ReadOnly<u32>, // 0x034
+    queue_num: WriteOnly<u32>, // 0x038
+    queue_align: WriteOnly<u32>, // 0x03c
+    queue_pfn: Volatile<u32>, // 0x040
+    queue_ready: Volatile<u32>, // new interface only
     __r3: [ReadOnly<u32>; 2],
-    queue_notify: WriteOnly<u32>,
+    queue_notify: WriteOnly<u32>, // 0x050
     __r4: [ReadOnly<u32>; 3],
-    interrupt_status: ReadOnly<u32>,
-    interrupt_ack: WriteOnly<u32>,
+    interrupt_status: ReadOnly<u32>, // 0x060
+    interrupt_ack: WriteOnly<u32>, // 0x064
     __r5: [ReadOnly<u32>; 2],
-    status: Volatile<u32>,
+    status: Volatile<u32>, // 0x070
     __r6: [ReadOnly<u32>; 3],
-    queue_desc_low: WriteOnly<u32>,
+    queue_desc_low: WriteOnly<u32>, // new interface only since here
     queue_desc_high: WriteOnly<u32>,
     __r7: [ReadOnly<u32>; 2],
     queue_avail_low: WriteOnly<u32>,
@@ -114,7 +121,7 @@ struct VirtIOVirtqueueDesc {
 }
 
 bitflags! {
-    struct VirtIOVirtqueueFlag {
+    struct VirtIOVirtqueueFlag : u16 {
         const NEXT = 1;
         const WRITE = 2;
         const INDIRECT = 4;
@@ -146,10 +153,23 @@ struct VirtIOVirtqueueUsed {
     avail_event: Volatile<u16>
 }
 
+// virtio 5.1.6 Device Operation
+#[repr(packed)]
+#[derive(Debug)]
+struct VirtIONetHeader {
+    flags: Volatile<u8>,
+    gso_type: Volatile<u8>,
+    hdr_len: Volatile<u16>,
+    gso_size: Volatile<u16>,
+    csum_start: Volatile<u16>,
+    csum_offset: Volatile<u16>,
+    payload: [u8; 32]
+}
+
 // virtio 2.4.2 Legacy Interfaces: A Note on Virtqueue Layout
 fn virtqueue_size(num: usize, align: usize) -> usize {
-    (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & ~align) +
-        (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & ~align) +
+    (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)) +
+        (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & !(align-1))
 }
 
 pub fn virtio_probe(node: &Node){
@@ -185,38 +205,69 @@ pub fn virtio_probe(node: &Node){
                 header.driver_features_sel.write(1); // driver features [32, 64)
                 header.driver_features.write(((driver_features & 0xFFFFFFFF00000000) >> 32) as u32);
 
-                // virtio 2.3.1 Driver Requirements: Device Configuration Space
                 // read configuration space
                 let mut mac: [u8; 6];
                 let mut status: VirtIONetworkStatus;
-                loop {
-                    let before_config_generation = header.config_generation.read();
-                    let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIONetworkConfig) };
-                    mac = config.mac;
-                    status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
-
-                    let after_config_generation = header.config_generation.read();
-                    if before_config_generation == after_config_generation {
-                        break
-                    }
-                }
+                let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIONetworkConfig) };
+                mac = config.mac;
+                status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
                 println!("Got MAC address {:?} and status {:?}", mac, status);
 
                 // virtio 4.2.4 Legacy interface
                 // configure two virtqueues: ingress and egress
-                header.guest_page_size.write(PAGE_SIZE); // one page
+                header.guest_page_size.write(PAGE_SIZE as u32); // one page
                 for queue in 0..2 {
                     header.queue_sel.write(queue);
                     assert_eq!(header.queue_pfn.read(), 0); // not in use
-                    let queue_num = header.queue_num_max.read();
-                    assert!(queue_num > 0); // queue available
-                    let size = virtqueue_size(queue_num, PAGE_SIZE);
+                    let queue_num_max = header.queue_num_max.read();
+                    let queue_num = 1; // for simplicity
+                    assert!(queue_num_max >= queue_num); // queue available
+                    let size = virtqueue_size(queue_num as usize, PAGE_SIZE);
                     assert!(size % PAGE_SIZE == 0);
                     // alloc continuous pages
+                    let address = unsafe {
+                        HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(size, PAGE_SIZE).unwrap())
+                    } as usize;
+                    println!("queue {} using page address {:#X} with size {}", queue, address as usize, size);
+                    header.queue_num.write(queue_num);
+                    header.queue_align.write(PAGE_SIZE as u32);
+                    header.queue_pfn.write((address as u32) >> 12);
+
+                    // allocate a page for buffer
+                    let page = unsafe {
+                        HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(PAGE_SIZE, PAGE_SIZE).unwrap())
+                    };
+                    // fill first desc
+                    let mut desc = unsafe { &mut *(address as *mut VirtIOVirtqueueDesc) };
+                    desc.addr.write(page as u64);
+                    desc.len.write(PAGE_SIZE as u32);
+                    desc.flags.write(VirtIOVirtqueueFlag::WRITE.bits());
+                    // TODO: memory barrier
+                    // add the desc to the ring
+                    let mut ring = unsafe { 
+                        &mut *((address + size_of::<VirtIOVirtqueueDesc>() * queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+                    };
+                    ring.ring[ring.idx.read() as usize].write(0);
+                    ring.idx.write(ring.idx.read() + 1);
+
+                    // notify device about the new buffer
+                    header.queue_notify.write(queue);
+                    println!("queue {} using page address {:#X}", queue, page as usize);
+                    processor().manager().add(Process::new_kernel(poll_buffer, page as usize), 0);
                 }
+
+                header.status.write(VirtIODeviceStatus::DRIVER_OK.bits());
             }
         } else {
             active_table().unmap(from as usize);
         }
+    }
+}
+
+pub extern fn poll_buffer(address: usize) -> ! {
+    loop {
+        let header = unsafe {&*(address as *const VirtIONetHeader)};
+        println!("read buffer {:X?}", header);
+        thread::sleep(Duration::from_millis(2000));
     }
 }
