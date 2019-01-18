@@ -1,3 +1,5 @@
+//! process mod
+
 pub use self::context::Process;
 pub use rcore_process::*;
 use crate::consts::{MAX_CPU_NUM, MAX_PROCESS_NUM};
@@ -5,6 +7,7 @@ use crate::arch::cpu;
 use alloc::{boxed::Box, sync::Arc};
 use log::*;
 
+/// init process subsystem
 pub fn init() {
     // NOTE: max_time_slice <= 5 to ensure 'priority' test pass
     let scheduler = Box::new(scheduler::RRScheduler::new(5));
