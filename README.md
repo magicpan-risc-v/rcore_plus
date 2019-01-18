@@ -34,6 +34,7 @@ cargo install cargo-xbuild bootimage
 ```bash
 git clone https://github.com//oscourse-tsinghua/rcore_plus.git --recursive
 git checkout lab8-rv32
+git submodule update --init --recursive
 cd rcore_plus/riscv_pk
 git checkout lab8-rv32
 cd ../kernel
