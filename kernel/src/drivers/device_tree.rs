@@ -1,7 +1,6 @@
 use core::slice;
 use device_tree::{DeviceTree, Node};
 use rcore_memory::paging::PageTable;
-use volatile::{Volatile, ReadOnly, WriteOnly};
 use super::bus::virtio_mmio::virtio_probe;
 
 fn walk_dt_node(dt: &Node) {

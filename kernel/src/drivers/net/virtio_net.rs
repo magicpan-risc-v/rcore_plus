@@ -3,20 +3,18 @@ use core::mem::size_of;
 use alloc::alloc::{Layout, GlobalAlloc};
 use device_tree::{DeviceTree, Node};
 use device_tree::util::SliceRead;
-use crate::memory::{active_table, alloc_frame};
+use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
-use volatile::{Volatile, ReadOnly, WriteOnly};
+use volatile::{Volatile, ReadOnly};
 use rcore_memory::PAGE_SIZE;
 use crate::HEAP_ALLOCATOR;
-use crate::process::processor;
-use crate::process::context::Process;
-use core::time::Duration;
-use crate::thread;
 use log::*;
 use alloc::prelude::*;
-use super::super::{DRIVERS, Driver};
+use alloc::format;
+use super::super::{DRIVERS, Driver, NetDriver, DeviceType};
 use crate::arch::cpu;
 use super::super::bus::virtio_mmio::{VirtIOHeader, VirtIODeviceStatus};
+use crate::net;
 
 struct VirtIONet {
     interrupt_parent: u32,
@@ -26,15 +24,18 @@ struct VirtIONet {
     queue_num: u32,
     // 0 for receive, 1 for transmit
     queue_address: [usize; 2],
-    queue_page: [usize; 2]
+    queue_page: [usize; 2],
+    last_used_idx: [u16; 2],
 }
 
 impl Driver for VirtIONet {
-    fn try_handle_interrupt(&self) -> bool {
+    fn try_handle_interrupt(&mut self) -> bool {
         // for simplicity
         if cpu::id() > 0 {
             return false
         }
+
+        // ensure header page is mapped
         {
             let mut table = active_table();
             if let None = table.get_entry(self.header as usize) {
@@ -45,23 +46,91 @@ impl Driver for VirtIONet {
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
             header.interrupt_ack.write(interrupt);
-            println!("Got interrupt {:?}", interrupt);
-            // 0 is receive queue
-            // change here when queue_num is larger than one
-            let mut payload = unsafe { slice::from_raw_parts_mut((self.queue_page[0] + 10) as *mut u8, PAGE_SIZE)};
-            println!("got buffer {:X?}", &payload[0..200]);
-            for i in 0..PAGE_SIZE {
-                payload[i] = 0;
+            let interrupt_status = VirtIONetworkInterruptStatus::from_bits_truncate(interrupt);
+            debug!("Got interrupt {:?}", interrupt_status);
+            if interrupt_status.contains(VirtIONetworkInterruptStatus::USED_RING_UPDATE) {
+                // 0 is receive queue
+                // need to change when queue_num is larger than one
+                for queue in 0..2 {
+                    let used_ring_offset = virtqueue_used_elem_offset(self.queue_num as usize, PAGE_SIZE);
+                    let mut used_ring = unsafe { 
+                        &mut *((self.queue_address[queue] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
+                    };
+                    let mut new_data_arrived = false;
+                    if self.last_used_idx[queue] < used_ring.idx.read() {
+                        assert_eq!(self.last_used_idx[queue], used_ring.idx.read() - 1);
+                        info!("Processing queue {} from {} to {}", queue, self.last_used_idx[queue], used_ring.idx.read());
+                        self.last_used_idx[queue] = used_ring.idx.read();
+                        new_data_arrived = true;
+                    }
+                    if new_data_arrived && queue == 0 {
+                        let mut payload = unsafe { slice::from_raw_parts_mut((self.queue_page[0] + 10) as *mut u8, PAGE_SIZE)};
+
+                        debug!("Got buffer {:X?}", &payload[0..200]);
+                        net::handle_packet(self, payload);
+                        for i in 0..PAGE_SIZE {
+                            payload[i] = 0;
+                        }
+                        let mut ring = unsafe { 
+                            &mut *((self.queue_address[0] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+                        };
+                        ring.idx.write(ring.idx.read() + 1);
+                        header.queue_notify.write(0);
+                    }
+                }
+            } else if interrupt_status.contains(VirtIONetworkInterruptStatus::CONFIGURATION_CHANGE) {
+                // TODO: update mac and status
+                unimplemented!("virtio-net configuration change not implemented");
             }
-            let mut ring = unsafe { 
-                &mut *((self.queue_address[0] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
-            };
-            ring.idx.write(ring.idx.read() + 1);
-            header.queue_notify.write(0);
+
             return true;
         } else {
             return false;
         }
+    }
+
+    fn device_type(&self) -> DeviceType {
+        DeviceType::Net
+    }
+}
+
+impl NetDriver for VirtIONet {
+    fn get_mac(&self) -> [u8; 6] {
+        self.mac
+    }
+
+    fn get_ifname(&self) -> String {
+        format!("virtio{}", self.interrupt)
+    }
+
+    fn send_packet(&mut self, payload: &[u8]) -> bool {
+        debug!("Sending payload {:?}", payload);
+        // assuming packet not too large and no buffer is transmitting
+        let payload_target = unsafe { slice::from_raw_parts_mut((self.queue_page[1] + 10) as *mut u8, payload.len())};
+        payload_target.clone_from_slice(payload);
+        let mut net_header = unsafe { &mut *(self.queue_page[1] as *mut VirtIONetHeader) };
+        net_header.hdr_len.write(payload.len() as u16);
+
+        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        // 1 for transmitq
+        let mut ring = unsafe { 
+            &mut *((self.queue_address[1] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+        };
+
+        // re-add buffer to desc
+        let mut desc = unsafe { &mut *(self.queue_address[1] as *mut VirtIOVirtqueueDesc) };
+        desc.addr.write(self.queue_page[1] as u64);
+        desc.len.write(PAGE_SIZE as u32);
+
+        // memory barrier
+        unsafe {
+            asm!("fence" ::: "memory");
+        }
+        
+        // add desc to avaible ring
+        ring.idx.write(ring.idx.read() + 1);
+        header.queue_notify.write(1);
+        true
     }
 }
 
@@ -102,6 +171,13 @@ bitflags! {
     struct VirtIONetworkStatus : u16 {
         const LINK_UP = 1;
         const ANNOUNCE = 2;
+    }
+}
+
+bitflags! {
+    struct VirtIONetworkInterruptStatus : u32 {
+        const USED_RING_UPDATE = 1 << 0;
+        const CONFIGURATION_CHANGE = 1 << 1;
     }
 }
 
@@ -147,7 +223,7 @@ struct VirtIOVirtqueueUsedElem {
 
 #[repr(packed)]
 #[derive(Debug)]
-struct VirtIOVirtqueueUsed {
+struct VirtIOVirtqueueUsedRing {
     flags: Volatile<u16>,
     idx: Volatile<u16>,
     ring: [VirtIOVirtqueueUsedElem; 1], // actual size: queue_size
@@ -171,6 +247,10 @@ struct VirtIONetHeader {
 fn virtqueue_size(num: usize, align: usize) -> usize {
     (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)) +
         (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & !(align-1))
+}
+
+fn virtqueue_used_elem_offset(num: usize, align: usize) -> usize {
+    ((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)
 }
 
 pub fn virtio_net_init(node: &Node) {
@@ -217,6 +297,7 @@ pub fn virtio_net_init(node: &Node) {
         queue_num: queue_num,
         queue_address: [0, 0],
         queue_page: [0, 0],
+        last_used_idx: [0, 0]
     };
 
     // 0 for receive, 1 for transmit
@@ -248,14 +329,26 @@ pub fn virtio_net_init(node: &Node) {
         let mut desc = unsafe { &mut *(address as *mut VirtIOVirtqueueDesc) };
         desc.addr.write(page as u64);
         desc.len.write(PAGE_SIZE as u32);
-        desc.flags.write(VirtIOVirtqueueFlag::WRITE.bits());
-        // TODO: memory barrier
-        // add the desc to the ring
-        let mut ring = unsafe { 
-            &mut *((address + size_of::<VirtIOVirtqueueDesc>() * queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
-        };
-        ring.ring[ring.idx.read() as usize].write(0);
-        ring.idx.write(ring.idx.read() + 1);
+        if queue == 0 {
+            // device writable
+            desc.flags.write(VirtIOVirtqueueFlag::WRITE.bits());
+        } else {
+            // driver readable
+            desc.flags.write(0);
+        }
+        // memory barrier
+        unsafe {
+            asm!("fence" ::: "memory");
+        }
+        if queue == 0 {
+            // add the desc to the ring
+            let mut ring = unsafe { 
+                &mut *((address + size_of::<VirtIOVirtqueueDesc>() * queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+            };
+            ring.ring[0].write(0);
+            // wait for first packet
+            ring.idx.write(ring.idx.read() + 1);
+        }
 
         // notify device about the new buffer
         header.queue_notify.write(queue);
