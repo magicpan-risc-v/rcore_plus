@@ -19,9 +19,12 @@ fn walk_dt_node(dt: &Node) {
 }
 
 pub fn init(dtb: usize) {
-    let mut size = u32::from_be(unsafe { *(dtb as *const u32).offset(1) });
-    let dtb_data = unsafe { slice::from_raw_parts(dtb as *const u8, size as usize) };
-    if let Ok(dt) = DeviceTree::load(dtb_data) {
-        walk_dt_node(&dt.root);
+    let magic = u32::from_be(unsafe { *(dtb as *const u32) });
+    if magic == 0xd00dfeed { // check device tree magic
+        let mut size = u32::from_be(unsafe { *(dtb as *const u32).offset(1) });
+        let dtb_data = unsafe { slice::from_raw_parts(dtb as *const u8, size as usize) };
+        if let Ok(dt) = DeviceTree::load(dtb_data) {
+            walk_dt_node(&dt.root);
+        }
     }
 }

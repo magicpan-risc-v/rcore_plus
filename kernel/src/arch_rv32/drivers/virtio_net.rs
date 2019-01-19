@@ -12,6 +12,57 @@ use crate::process::processor;
 use crate::process::context::Process;
 use core::time::Duration;
 use crate::thread;
+use log::*;
+use alloc::prelude::*;
+use crate::arch::drivers::{DRIVERS, Driver};
+use crate::arch::cpu;
+
+struct VirtIONet {
+    interrupt_parent: u32,
+    interrupt: u32,
+    header: usize,
+    mac: [u8; 6],
+    queue_num: u32,
+    // 0 for receive, 1 for transmit
+    queue_address: [usize; 2],
+    queue_page: [usize; 2]
+}
+
+impl Driver for VirtIONet {
+    fn try_handle_interrupt(&self) -> bool {
+        // for simplicity
+        if cpu::id() > 0 {
+            return false
+        }
+        {
+            let mut table = active_table();
+            if let None = table.get_entry(self.header as usize) {
+                table.map(self.header as usize, self.header as usize);
+            }
+        }
+        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        let interrupt = header.interrupt_status.read();
+        if interrupt != 0 {
+            header.interrupt_ack.write(interrupt);
+            println!("Got interrupt {:?}", interrupt);
+            // 0 is receive queue
+            let mut payload = unsafe { slice::from_raw_parts_mut((self.queue_page[0] + 10) as *mut u8, PAGE_SIZE)};
+            println!("got buffer {:X?}", &payload[0..200]);
+            for i in 0..PAGE_SIZE {
+                payload[i] = 0;
+            }
+            let mut ring = unsafe { 
+                &mut *((self.queue_address[0] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+            };
+            // change here when queue_num is larger than one
+            ring.idx.write(ring.idx.read() + 1);
+            header.queue_notify.write(0);
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
 
 // virtio 4.2.4 Legacy interface
 #[repr(packed)]
@@ -159,11 +210,11 @@ struct VirtIOVirtqueueUsed {
 struct VirtIONetHeader {
     flags: Volatile<u8>,
     gso_type: Volatile<u8>,
-    hdr_len: Volatile<u16>,
+    hdr_len: Volatile<u16>, // cannot rely on this
     gso_size: Volatile<u16>,
     csum_start: Volatile<u16>,
     csum_offset: Volatile<u16>,
-    payload: [u8; 32]
+    payload: [u8; 1] // actual size unknown
 }
 
 // virtio 2.4.2 Legacy Interfaces: A Note on Virtqueue Layout
@@ -178,26 +229,29 @@ pub fn virtio_probe(node: &Node){
         let size = reg.as_slice().read_be_u64(8).unwrap();
         // assuming one page
         active_table().map(from as usize, from as usize);
-        let data = unsafe { slice::from_raw_parts(from as *const u8, size as usize)};
         let mut header = unsafe { &mut *(from as *mut VirtIOHeader) };
         let magic = header.magic.read();
         let version = header.version.read();
         let device_id = header.device_id.read();
         // only support legacy device
         if magic == 0x74726976 && version == 1 && device_id != 0 { // "virt" magic
-            println!("Detected virtio net device with vendor id {:#X}", header.vendor_id.read());
+            info!("Detected virtio net device with vendor id {:#X}", header.vendor_id.read());
+            info!("Device tree node {:?}", node);
             // virtio 3.1.1 Device Initialization
             header.status.write(0);
             header.status.write(VirtIODeviceStatus::ACKNOWLEDGE.bits());
             if device_id == 1 { // net device
                 header.status.write(VirtIODeviceStatus::DRIVER.bits());
+
                 let mut device_features_bits: u64 = 0;
                 header.device_features_sel.write(0); // device features [0, 32)
                 device_features_bits = header.device_features.read().into();
                 header.device_features_sel.write(1); // device features [32, 64)
                 device_features_bits = device_features_bits + ((header.device_features.read() as u64) << 32);
                 let device_features = VirtIONetFeature::from_bits_truncate(device_features_bits);
-                println!("Device features {:?}", device_features);
+                debug!("Device features {:?}", device_features);
+
+                // negotiate these flags only
                 let supported_features = VirtIONetFeature::MAC | VirtIONetFeature::STATUS;
                 let driver_features = (device_features & supported_features).bits();
                 header.driver_features_sel.write(0); // driver features [0, 32)
@@ -211,16 +265,28 @@ pub fn virtio_probe(node: &Node){
                 let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIONetworkConfig) };
                 mac = config.mac;
                 status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
-                println!("Got MAC address {:?} and status {:?}", mac, status);
+                debug!("Got MAC address {:?} and status {:?}", mac, status);
 
                 // virtio 4.2.4 Legacy interface
                 // configure two virtqueues: ingress and egress
                 header.guest_page_size.write(PAGE_SIZE as u32); // one page
+
+                let queue_num = 1; // for simplicity
+                let mut driver = VirtIONet {
+                    interrupt: node.prop_u32("interrupts").unwrap(),
+                    interrupt_parent: node.prop_u32("interrupt-parent").unwrap(),
+                    header: from as usize,
+                    mac: mac,
+                    queue_num: queue_num,
+                    queue_address: [0, 0],
+                    queue_page: [0, 0],
+                };
+
+                // 0 for receive, 1 for transmit
                 for queue in 0..2 {
                     header.queue_sel.write(queue);
                     assert_eq!(header.queue_pfn.read(), 0); // not in use
                     let queue_num_max = header.queue_num_max.read();
-                    let queue_num = 1; // for simplicity
                     assert!(queue_num_max >= queue_num); // queue available
                     let size = virtqueue_size(queue_num as usize, PAGE_SIZE);
                     assert!(size % PAGE_SIZE == 0);
@@ -228,7 +294,9 @@ pub fn virtio_probe(node: &Node){
                     let address = unsafe {
                         HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(size, PAGE_SIZE).unwrap())
                     } as usize;
-                    println!("queue {} using page address {:#X} with size {}", queue, address as usize, size);
+                    driver.queue_address[queue as usize] = address;
+                    debug!("queue {} using page address {:#X} with size {}", queue, address as usize, size);
+
                     header.queue_num.write(queue_num);
                     header.queue_align.write(PAGE_SIZE as u32);
                     header.queue_pfn.write((address as u32) >> 12);
@@ -236,7 +304,9 @@ pub fn virtio_probe(node: &Node){
                     // allocate a page for buffer
                     let page = unsafe {
                         HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(PAGE_SIZE, PAGE_SIZE).unwrap())
-                    };
+                    } as usize;
+                    driver.queue_page[queue as usize] = page;
+
                     // fill first desc
                     let mut desc = unsafe { &mut *(address as *mut VirtIOVirtqueueDesc) };
                     desc.addr.write(page as u64);
@@ -252,22 +322,14 @@ pub fn virtio_probe(node: &Node){
 
                     // notify device about the new buffer
                     header.queue_notify.write(queue);
-                    println!("queue {} using page address {:#X}", queue, page as usize);
-                    processor().manager().add(Process::new_kernel(poll_buffer, page as usize), 0);
+                    debug!("queue {} using page address {:#X}", queue, page);
                 }
 
                 header.status.write(VirtIODeviceStatus::DRIVER_OK.bits());
+                DRIVERS.lock().push(Box::new(driver));
             }
         } else {
             active_table().unmap(from as usize);
         }
-    }
-}
-
-pub extern fn poll_buffer(address: usize) -> ! {
-    loop {
-        let header = unsafe {&*(address as *const VirtIONetHeader)};
-        println!("read buffer {:X?}", header);
-        thread::sleep(Duration::from_millis(2000));
     }
 }
