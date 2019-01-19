@@ -1,7 +1,7 @@
 use core::slice;
 use core::mem::size_of;
 use alloc::alloc::{Layout, GlobalAlloc};
-use device_tree::{DeviceTree, Node};
+use device_tree::Node;
 use device_tree::util::SliceRead;
 use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
@@ -20,7 +20,8 @@ struct VirtIONet {
     interrupt_parent: u32,
     interrupt: u32,
     header: usize,
-    mac: [u8; 6],
+    mac: net::MacAddr,
+    ipv4_addr: net::IPv4Addr,
     queue_num: u32,
     // 0 for receive, 1 for transmit
     queue_address: [usize; 2],
@@ -95,8 +96,12 @@ impl Driver for VirtIONet {
 }
 
 impl NetDriver for VirtIONet {
-    fn get_mac(&self) -> [u8; 6] {
+    fn get_mac(&self) -> net::MacAddr {
         self.mac
+    }
+
+    fn get_ipv4(&self) -> net::IPv4Addr {
+        self.ipv4_addr
     }
 
     fn get_ifname(&self) -> String {
@@ -293,7 +298,8 @@ pub fn virtio_net_init(node: &Node) {
         interrupt: node.prop_u32("interrupts").unwrap(),
         interrupt_parent: node.prop_u32("interrupt-parent").unwrap(),
         header: from as usize,
-        mac: mac,
+        mac: net::MacAddr::from(mac),
+        ipv4_addr: net::IPv4Addr::from([10, 0, 0, 2]), // hardcoded for now
         queue_num: queue_num,
         queue_address: [0, 0],
         queue_page: [0, 0],

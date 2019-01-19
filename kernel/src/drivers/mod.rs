@@ -5,6 +5,7 @@ mod net;
 use lazy_static::lazy_static;
 use alloc::prelude::*;
 use crate::sync::SpinNoIrqLock;
+use crate::net::{MacAddr, IPv4Addr};
 
 pub enum DeviceType {
     Net
@@ -25,7 +26,10 @@ pub trait NetDriver: Driver {
     fn send_packet(&mut self, payload: &[u8]) -> bool;
 
     // get mac address for this device
-    fn get_mac(&self) -> [u8; 6];
+    fn get_mac(&self) -> MacAddr;
+
+    // get ipv4 address for this device
+    fn get_ipv4(&self) -> IPv4Addr;
 
     // get interface name for this device
     fn get_ifname(&self) -> String;
