@@ -7,7 +7,7 @@ use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
 
 /*
 * @brief:
-*   Init the mermory management module, allow memory access and set up page table and init heap and frame allocator
+*   Init the memory management module, allow memory access and set up page table and init heap and frame allocator
 */
 pub fn init(dtb: usize) {
     #[repr(align(4096))]  // align the PageData struct to 4096 bytes

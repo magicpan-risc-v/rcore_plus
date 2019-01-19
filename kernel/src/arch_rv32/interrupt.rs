@@ -40,7 +40,7 @@ pub unsafe fn enable() {
 /*
 * @brief:
 *   store and disable interrupt
-* @retbal:
+* @retval:
 *   a usize value store the origin sie
 */
 #[inline(always)]

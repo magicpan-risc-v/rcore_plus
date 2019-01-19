@@ -132,7 +132,7 @@ impl NetDriver for VirtIONet {
             asm!("fence" ::: "memory");
         }
         
-        // add desc to avaible ring
+        // add desc to available ring
         ring.idx.write(ring.idx.read() + 1);
         header.queue_notify.write(1);
         true
