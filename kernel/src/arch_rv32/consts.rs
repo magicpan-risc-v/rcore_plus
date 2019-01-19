@@ -1,3 +1,5 @@
+//! rv32 memory related const
+
 // Physical address available on THINPAD:
 // [0x80000000, 0x80800000]
 pub const RECURSIVE_INDEX: usize = 0x3fe;

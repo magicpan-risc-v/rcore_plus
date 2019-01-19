@@ -54,9 +54,13 @@ RISC-V共有4种不同的特权级，与x86不同的是，RISC-V中特权级对�
 |        2         | M, U            | Secure embedded systems                     |
 |        3         | M, S, U         | Systems running Unix-like operating systems |
 
+为了简化操作系统对具体硬件的依赖，运行在S-mode的操作系统可以通过Supervisor Binary Interface (SBI)接口向运行在最底层的M-mode的底层软件发出底层功能请求并得到底层软件的服务（比如设置时钟、输入字符、输出字符等）。
+
+在基于rcore on rv32的操作系统实验中，bootloader运行在M-mode，rcore kernel运行在S-mode，而应用程序运行在U-mode。
+
 ### Berkeley Boot Loader
 
-bbl是运行在M态的特殊程序，负责对底层硬件的控制，并向运行在S态的操作系统提供相应的服务。
+bbl是运行在M-mode的特殊程序，负责对底层硬件的控制，并向运行在S-mode的操作系统提供相应的服务。
 bbl的职责是进行初始化工作并将控制权转交给内核，并通过Supervisor Binary Interface (SBI)为操作系统提供基础的服务。
 
 #### rcore的编译
@@ -65,16 +69,22 @@ rcore的源代码在`kernel`目录下，而bbl的源代码位于`riscv-pk`目录
 两者的编译是分开进行的，rcore编译完成后会生成`kernel/target/riscv32/debug/rcore`文件。
 然后在编译bbl的过程中，该文件会被嵌入到bbl的二进制文件中，读者可以检查`riscv-pk/bbl/payload.S`文件，我们使用了GCC提供的`.incbin`汇编命令将`BBL_PAYLOAD`所指向的文件包含在了生成的程序中。
 
-这样做是因为我们使用的RISC-V模拟器QEMU不支持磁盘的模拟，因此我们只能将需要加载的内核文件放入引导程序之中，再由引导程序将内核释放到内存中。
+这样做是因为当前我们使用的RISC-V模拟器QEMU不支持磁盘的模拟，因此我们只能将需要加载的内核文件放入引导程序之中，再由引导程序将内核释放到内存中。
 
 #### bbl启动过程
 
 有兴趣的同学可以从`riscv-pk/machine/mentry.S`中的`do_reset`处开始阅读。
 
+##### bbl的SBI支持
+
+在bbl中，为简化rcore对硬件的IO访问，通过SBI接口提供了，对时钟、字符输入输出的底层支持。rcore操作系统通过调用带相应参数的`ecall`指令就获得bbl的底层服务。如同学需要了解bbl中相关的具体实现，可查看`riscv-pk/machine/mtrap.c`中实现的相关函数（如 mcall_console_putchar，mcall_console_getchar， mcall_set_timer等）即可。
+
 #### rcore启动过程
 
-bbl在完成初始化工作后，会将处理器切换到S态同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。
+bbl在完成初始化工作后，会将处理器从M-mode切换到S-mode同时跳转到`kernel/src/arch_rv32/boot/entry.asm`的`_start`处开始执行，此时我们已经进入了rcore。`kernel/src/arch_rv32/mod.rs`的rust_main函数是完成初始化过程的主体函数。
+
 rcore之后要完成的主要任务包括：
+
 1. 设置中断向量
 2. 设置时钟中断
 4. 进行中断处理
@@ -86,10 +96,7 @@ rcore之后要完成的主要任务包括：
 `interrupt.rs`中的`init`函数完成了设置中断向量的任务。
 
 ```rust
-/*
-* @brief:
-*   initialize the interrupt status
-*/
+/// initialize the interrupt status
 pub fn init() {
     extern {
         fn __alltraps();
@@ -113,17 +120,25 @@ pub fn init() {
 此处`__alltraps`为函数指针，实际函数位于`kernel/src/arch_rv32/boot/trap.asm`文件中。
 之后如果发生了中断，那么处理器就会自动跳转到`__alltraps`进行中断处理。
 
-另外，`interrupt::enable`函数能够使能中断。
+另外，`interrupt::enable`函数能够使能中断。sstatus寄存器的IE 位使能或者禁用S-mode下的所有中断。当 IE 被清零时,当处于S-mode时中断并不被处理。操作系统可以使用 sie 寄存器禁用单个中断源。
 
 ```rust
-/*
-* @brief:
-*   enable interrupt
-*/
+/// enable interrupt
 #[inline(always)]
 pub unsafe fn enable() {
     sstatus::set_sie();
 }
+```
+##### SBI访问接口
+在`kernel/src/arch_rv32/sbi.rs`中描述了rcore访问bbl的SBI接口信息。通过其`sbi_call`函数的实现，可以看到rcore是通过调用带有相关参数的ecall指令来完成SBI访问的。目前支持的部分SBI调用功能参数如下所示：
+```
+/// sbi: 设置时钟
+const SBI_SET_TIMER: usize = 0;
+/// sbi: 输出字符
+const SBI_CONSOLE_PUTCHAR: usize = 1;
+/// sbi: 输入字符
+const SBI_CONSOLE_GETCHAR: usize = 2;
+......
 ```
 
 ##### 设置时钟中断
@@ -131,10 +146,7 @@ pub unsafe fn enable() {
 `kernel/src/arch_rv32/timer.rs`中的`init`函数完成了初始化时钟中断的工作。
 
 ```rust
-/*
-* @brief: 
-*   enable supervisor timer interrupt and set next timer interrupt
-*/
+/// enable supervisor timer interrupt and set next timer interrupt
 pub fn init() {
     // Enable supervisor timer interrupt
     unsafe { sie::set_stimer(); }
@@ -142,10 +154,7 @@ pub fn init() {
     info!("timer: init end");
 }
 
-/*
-* @brief: 
-*   set the next timer interrupt
-*/
+/// set the next time interval
 pub fn set_next() {
     // 100Hz @ QEMU
     let timebase = 250000;
@@ -178,7 +187,7 @@ __trapret:
     sret
 ```
 
-我们提到的“中断现场”正式名称是中断帧，它包含了处理中断所需要的所有信息。
+我们提到的“中断现场”正式名称是中断帧 TrapFrame，它包含了处理中断所需要的所有信息，定义在kernel/src/arch_rv32/context.rs中。
 一个中断帧是如下定义的结构体：
 ```rust
 /// Saved registers on a trap.
@@ -198,7 +207,7 @@ pub struct TrapFrame {
 }
 ```
 
-`SAVE_ALL`宏定义如下，可以看到我们将`x1`-`x31`、`sstatus`、`sepc`、`stval`和`scause`依次保存到了栈上，从而形成了一个`TrapFrame`的结构，我们随后将指向该结构体的栈指针`sp`保存到`a0`中作为中断处理函数`rust_trap`的参数。
+`SAVE_ALL`宏定义（kernel/src/arch_rv32/boot/trap.asm）如下，可以看到我们将`x1`-`x31`、`sstatus`、`sepc`、`stval`和`scause`依次保存到了栈上，从而形成了一个`TrapFrame`的结构，我们随后将指向该结构体的栈指针`sp`保存到`a0`中作为中断处理函数`rust_trap`的参数。
 
 ```asm
 .macro SAVE_ALL
@@ -219,31 +228,7 @@ _save_context:
     # tp(x4) = hartid. DON'T change.
     # STORE x4, 4
     STORE x5, 5
-    STORE x6, 6
-    STORE x7, 7
-    STORE x8, 8
-    STORE x9, 9
-    STORE x10, 10
-    STORE x11, 11
-    STORE x12, 12
-    STORE x13, 13
-    STORE x14, 14
-    STORE x15, 15
-    STORE x16, 16
-    STORE x17, 17
-    STORE x18, 18
-    STORE x19, 19
-    STORE x20, 20
-    STORE x21, 21
-    STORE x22, 22
-    STORE x23, 23
-    STORE x24, 24
-    STORE x25, 25
-    STORE x26, 26
-    STORE x27, 27
-    STORE x28, 28
-    STORE x29, 29
-    STORE x30, 30
+    ......       # STORE X[6-30], [6-30]
     STORE x31, 31
 
     # get sp, sstatus, sepc, stval, scause
@@ -282,31 +267,7 @@ _restore_context:
     LOAD x3, 3
     # LOAD x4, 4
     LOAD x5, 5
-    LOAD x6, 6
-    LOAD x7, 7
-    LOAD x8, 8
-    LOAD x9, 9
-    LOAD x10, 10
-    LOAD x11, 11
-    LOAD x12, 12
-    LOAD x13, 13
-    LOAD x14, 14
-    LOAD x15, 15
-    LOAD x16, 16
-    LOAD x17, 17
-    LOAD x18, 18
-    LOAD x19, 19
-    LOAD x20, 20
-    LOAD x21, 21
-    LOAD x22, 22
-    LOAD x23, 23
-    LOAD x24, 24
-    LOAD x25, 25
-    LOAD x26, 26
-    LOAD x27, 27
-    LOAD x28, 28
-    LOAD x29, 29
-    LOAD x30, 30
+    ......   # LOAD X[6-30], [6-30]
     LOAD x31, 31
     # restore sp last
     LOAD x2, 2
@@ -314,6 +275,6 @@ _restore_context:
 ```
 
 我们在保存和恢复中断现场时都用到了`sscratch`寄存器，其实理由很简单。
-以保存中断帧为例，为了保存通用寄存器到内核栈顶部，我们首先至少要写一个寄存器。
+以保存中断帧为例，为了保存通用寄存器(sp也是一个通用寄存器)到内核栈顶部，我们首先至少要写一个寄存器。
 因此，RISC-V指令集为我们提供了一个专门用来处理此种情况的`sscratch`寄存器。
 通过使用`sscratch`寄存器，我们还能够实现嵌套中断的功能，感兴趣的同学可以参考[issue #2](https://github.com/oscourse-tsinghua/rcore_plus/issues/2)。

@@ -82,7 +82,7 @@ objdump := $(prefix)objdump
 objcopy := $(prefix)objcopy
 cc := $(prefix)gcc
 as := $(prefix)as
-gdb := gdb
+gdb := $(prefix)gdb
 export CC=$(cc)
 
 .PHONY: all clean run build asm doc justrun debug kernel sfsimg install runnet

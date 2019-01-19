@@ -123,16 +123,7 @@ pub unsafe extern fn switch(&mut self, _target: &mut Self) {
     Store sp, 0(a0)
     Store ra, 0*XLENB(sp)
     Store s0, 2*XLENB(sp)
-    Store s1, 3*XLENB(sp)
-    Store s2, 4*XLENB(sp)
-    Store s3, 5*XLENB(sp)
-    Store s4, 6*XLENB(sp)
-    Store s5, 7*XLENB(sp)
-    Store s6, 8*XLENB(sp)
-    Store s7, 9*XLENB(sp)
-    Store s8, 10*XLENB(sp)
-    Store s9, 11*XLENB(sp)
-    Store s10, 12*XLENB(sp)
+    ......  ## Store si, (i+2)*XLENB(sp)
     Store s11, 13*XLENB(sp)
     csrr  s11, satp
     Store s11, 1*XLENB(sp)
@@ -142,16 +133,7 @@ pub unsafe extern fn switch(&mut self, _target: &mut Self) {
     csrw satp, s11
     Load ra, 0*XLENB(sp)
     Load s0, 2*XLENB(sp)
-    Load s1, 3*XLENB(sp)
-    Load s2, 4*XLENB(sp)
-    Load s3, 5*XLENB(sp)
-    Load s4, 6*XLENB(sp)
-    Load s5, 7*XLENB(sp)
-    Load s6, 8*XLENB(sp)
-    Load s7, 9*XLENB(sp)
-    Load s8, 10*XLENB(sp)
-    Load s9, 11*XLENB(sp)
-    Load s10, 12*XLENB(sp)
+    ...... ## Load si, (i+2)*XLENB(sp)
     Load s11, 13*XLENB(sp)
     addi sp, sp, (XLENB*14)
     Store zero, 0(a1)
@@ -238,7 +220,7 @@ trap_table:
 ```
 
 中断触发后，会根据中断号`mcause`跳转到表中相应的函数进行处理。
-例如从S态发出的`ecall`对应的`mcause`为9，因此将会执行`mcall_trap`函数进行相应的处理。
+例如从S-mode发出的`ecall`对应的`mcause`为9，因此将会执行`mcall_trap`函数进行相应的处理。
 
 ```c
 void mcall_trap(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc)
@@ -289,7 +271,7 @@ send_ipi:
 }
 ```
 
-在完成lab5后，读者将会发现bbl处理来自S态的`ecall`的流程和rcore处理来自U态的流程相似。
+在完成lab5后，读者将会发现bbl处理来自S-mode的`ecall`的流程和rcore处理来自U-mode的ecall流程相似。
 `mcall_trap`函数的处理过程如下：
 1. `write_csr(mepc, mepc + 4)`使得中断返回后不再触发`ecall`语句，而是从下一条语句接着执行
 2. 根据寄存器中保存的信息判断操作系统请求的服务，并进行相应的处理

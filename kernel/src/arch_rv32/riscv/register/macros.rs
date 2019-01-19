@@ -1,3 +1,5 @@
+//! Macro for read/write CSR
+
 macro_rules! read_csr {
     ($csr_number:expr) => {
         /// Reads the CSR

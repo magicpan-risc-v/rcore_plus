@@ -10,6 +10,7 @@ mod riscv;
 
 use super::drivers;
 
+/// rcore初始化总控函数
 #[no_mangle]
 pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: usize) -> ! {
     unsafe { cpu::set_cpu_id(hartid); }
@@ -35,6 +36,7 @@ pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: 
     crate::kmain();
 }
 
+/// 启动其他处理器
 fn others_main() -> ! {
     interrupt::init();
     memory::init_other();

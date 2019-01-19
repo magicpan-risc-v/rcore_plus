@@ -17,8 +17,8 @@ impl PageTable {
     /// Virtual address of root: (R, R+1, 0)
     pub fn set_recursive(&mut self, recursive_index: usize, frame: Frame) {
         type EF = PageTableFlags;
-        self[recursive_index].set(frame.clone(), EF::VALID);
-        self[recursive_index + 1].set(frame.clone(), EF::VALID | EF::READABLE | EF::WRITABLE);
+        self[recursive_index].set(frame, EF::VALID);
+        self[recursive_index + 1].set(frame, EF::VALID | EF::READABLE | EF::WRITABLE);
     }
 
     /// Setup identity map: VirtPage at pagenumber -> PhysFrame at pagenumber
