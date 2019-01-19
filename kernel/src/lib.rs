@@ -32,6 +32,7 @@ mod fs;
 mod sync;
 mod trap;
 mod shell;
+mod drivers;
 
 #[path = "arch_rv32/mod.rs"]
 pub mod arch;

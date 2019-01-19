@@ -7,8 +7,8 @@ pub mod consts;
 pub mod cpu;
 mod sbi;
 mod riscv;
-mod device_tree;
-mod drivers;
+
+use super::drivers;
 
 #[no_mangle]
 pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: usize) -> ! {
@@ -29,7 +29,7 @@ pub extern fn rust_main(hartid: usize, dtb: usize, hart_mask: usize, functions: 
     memory::init(dtb);
     timer::init();
     crate::process::init();
-    device_tree::init(dtb);
+    drivers::init(dtb);
 
     unsafe { cpu::start_others(hart_mask); }
     crate::kmain();

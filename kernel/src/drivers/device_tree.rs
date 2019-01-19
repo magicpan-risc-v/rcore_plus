@@ -1,10 +1,8 @@
 use core::slice;
 use device_tree::{DeviceTree, Node};
-use device_tree::util::SliceRead;
-use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
 use volatile::{Volatile, ReadOnly, WriteOnly};
-use crate::arch::drivers::virtio_net::virtio_probe;
+use super::bus::virtio_mmio::virtio_probe;
 
 fn walk_dt_node(dt: &Node) {
     if let Ok(compatible) = dt.prop_str("compatible") {
