@@ -1,10 +1,12 @@
 use super::super::net::virtio_net;
+use super::super::gpu::virtio_gpu;
 use volatile::{Volatile, ReadOnly, WriteOnly};
 use log::*;
 use device_tree::Node;
 use device_tree::util::SliceRead;
 use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
+use core::mem::size_of;
 
 // virtio 4.2.4 Legacy interface
 #[repr(packed)]
@@ -58,6 +60,58 @@ bitflags! {
     }
 }
 
+#[repr(packed)]
+#[derive(Debug)]
+pub struct VirtIOVirtqueueDesc {
+    pub addr: Volatile<u64>,
+    pub len: Volatile<u32>,
+    pub flags: Volatile<u16>,
+    pub next: Volatile<u16>
+}
+
+bitflags! {
+    pub struct VirtIOVirtqueueFlag : u16 {
+        const NEXT = 1;
+        const WRITE = 2;
+        const INDIRECT = 4;
+    }
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+pub struct VirtIOVirtqueueAvailableRing {
+    pub flags: Volatile<u16>,
+    pub idx: Volatile<u16>,
+    pub ring: [Volatile<u16>; 32], // actual size: queue_size
+    used_event: Volatile<u16>
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+pub struct VirtIOVirtqueueUsedElem {
+    id: Volatile<u32>,
+    len: Volatile<u32>
+}
+
+#[repr(packed)]
+#[derive(Debug)]
+pub struct VirtIOVirtqueueUsedRing {
+    pub flags: Volatile<u16>,
+    pub idx: Volatile<u16>,
+    pub ring: [VirtIOVirtqueueUsedElem; 32], // actual size: queue_size
+    avail_event: Volatile<u16>
+}
+
+// virtio 2.4.2 Legacy Interfaces: A Note on Virtqueue Layout
+pub fn virtqueue_size(num: usize, align: usize) -> usize {
+    (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)) +
+        (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & !(align-1))
+}
+
+pub fn virtqueue_used_elem_offset(num: usize, align: usize) -> usize {
+    ((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)
+}
+
 pub fn virtio_probe(node: &Node) {
     if let Some(reg) = node.prop_raw("reg") {
         let from = reg.as_slice().read_be_u64(0).unwrap();
@@ -77,6 +131,10 @@ pub fn virtio_probe(node: &Node) {
             header.status.write(VirtIODeviceStatus::ACKNOWLEDGE.bits());
             if device_id == 1 { // net device
                 virtio_net::virtio_net_init(node);
+            } else if device_id == 16 { // gpu device
+                virtio_gpu::virtio_gpu_init(node);
+            } else {
+                println!("Unrecognized virtio device {}", device_id);
             }
         } else {
             active_table().unmap(from as usize);

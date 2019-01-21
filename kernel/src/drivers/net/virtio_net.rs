@@ -13,7 +13,7 @@ use alloc::prelude::*;
 use alloc::format;
 use super::super::{DRIVERS, Driver, NetDriver, DeviceType};
 use crate::arch::cpu;
-use super::super::bus::virtio_mmio::{VirtIOHeader, VirtIODeviceStatus};
+use super::super::bus::virtio_mmio::*;
 use crate::net;
 
 struct VirtIONet {
@@ -193,47 +193,6 @@ struct VirtIONetworkConfig {
     status: ReadOnly<u16>
 }
 
-#[repr(packed)]
-#[derive(Debug)]
-struct VirtIOVirtqueueDesc {
-    addr: Volatile<u64>,
-    len: Volatile<u32>,
-    flags: Volatile<u16>,
-    next: Volatile<u16>
-}
-
-bitflags! {
-    struct VirtIOVirtqueueFlag : u16 {
-        const NEXT = 1;
-        const WRITE = 2;
-        const INDIRECT = 4;
-    }
-}
-
-#[repr(packed)]
-#[derive(Debug)]
-struct VirtIOVirtqueueAvailableRing {
-    flags: Volatile<u16>,
-    idx: Volatile<u16>,
-    ring: [Volatile<u16>; 1], // actual size: queue_size
-    used_event: Volatile<u16>
-}
-
-#[repr(packed)]
-#[derive(Debug)]
-struct VirtIOVirtqueueUsedElem {
-    id: Volatile<u32>,
-    len: Volatile<u32>
-}
-
-#[repr(packed)]
-#[derive(Debug)]
-struct VirtIOVirtqueueUsedRing {
-    flags: Volatile<u16>,
-    idx: Volatile<u16>,
-    ring: [VirtIOVirtqueueUsedElem; 1], // actual size: queue_size
-    avail_event: Volatile<u16>
-}
 
 // virtio 5.1.6 Device Operation
 #[repr(packed)]
@@ -248,15 +207,6 @@ struct VirtIONetHeader {
     payload: [u8; 1] // actual size unknown
 }
 
-// virtio 2.4.2 Legacy Interfaces: A Note on Virtqueue Layout
-fn virtqueue_size(num: usize, align: usize) -> usize {
-    (((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)) +
-        (((size_of::<u16>() * 3 + size_of::<VirtIOVirtqueueUsedElem>() * num) + align) & !(align-1))
-}
-
-fn virtqueue_used_elem_offset(num: usize, align: usize) -> usize {
-    ((size_of::<VirtIOVirtqueueDesc>() * num + size_of::<u16>() * (3 + num)) + align) & !(align-1)
-}
 
 pub fn virtio_net_init(node: &Node) {
     let reg = node.prop_raw("reg").unwrap();

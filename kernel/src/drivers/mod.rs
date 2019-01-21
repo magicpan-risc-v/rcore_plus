@@ -1,6 +1,7 @@
 mod device_tree;
-mod bus;
+pub mod bus;
 mod net;
+mod gpu;
 
 use lazy_static::lazy_static;
 use alloc::prelude::*;
@@ -8,7 +9,8 @@ use crate::sync::SpinNoIrqLock;
 use crate::net::{MacAddr, IPv4Addr};
 
 pub enum DeviceType {
-    Net
+    Net,
+    Gpu
 }
 
 pub trait Driver : Send {
