@@ -3,4 +3,4 @@
 	url = https://github.com/riscv-and-rust-and-decaf/riscv-pk.git
 [submodule "crate/fs/sfs"]
 	path = crate/fs/sfs
-	url = git@github.com:wangrunji0408/SimpleFileSystem-Rust.git
+	url = https://github.com/wangrunji0408/SimpleFileSystem-Rust.git

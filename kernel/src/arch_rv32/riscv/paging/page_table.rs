@@ -21,10 +21,10 @@ impl PageTable {
         self[recursive_index + 1].set(frame, EF::VALID | EF::READABLE | EF::WRITABLE);
     }
 
-    /// Setup identity map: VirtPage at pagenumber -> PhysFrame at pagenumber
-    /// pn: pagenumber = addr>>12 in riscv32.
-    pub fn map_identity(&mut self, pn: usize, flags: PageTableFlags) {
-        self.entries[pn].set(Frame::of_addr(PhysAddr::new((pn as u32) << 22)), flags);
+    /// Setup identity map: VirtPage at `mpn` -> PhysFrame at `mpn`
+    /// `mpn`: mega page number = addr >> 22 in riscv32.
+    pub fn map_identity(&mut self, mpn: usize, flags: PageTableFlags) {
+        self.entries[mpn].set(Frame::of_addr(PhysAddr::new((mpn as u32) << 22)), flags);
     }
 }
 

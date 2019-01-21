@@ -10,7 +10,6 @@ pub trait Scheduler {
     fn select(&mut self) -> Option<Pid>;
     fn tick(&mut self, current: Pid) -> bool;   // need reschedule?
     fn set_priority(&mut self, pid: Pid, priority: u8);
-    fn move_to_head(&mut self, pid: Pid);
 }
 
 pub use self::rr::RRScheduler;
@@ -80,14 +79,6 @@ mod rr {
         }
 
         fn set_priority(&mut self, _pid: usize, _priority: u8) {
-        }
-
-        fn move_to_head(&mut self, pid: usize) {
-            let pid = pid + 1;
-            assert!(self.infos[pid].present);
-            self._list_remove(pid);
-            self._list_add_after(pid, 0);
-            trace!("rr move_to_head {}", pid - 1);
         }
     }
 
@@ -212,15 +203,6 @@ mod stride {
         fn set_priority(&mut self, pid: Pid, priority: u8) {
             self.infos[pid].priority = priority;
             trace!("stride {} priority = {}", pid, priority);
-        }
-
-        fn move_to_head(&mut self, pid: Pid) {
-            if self.queue.peek().is_some() {
-                let stride = -self.queue.peek().unwrap().0;
-                self.remove(pid);
-                self.infos[pid].stride = stride;
-                self.insert(pid);
-            }
         }
     }
 

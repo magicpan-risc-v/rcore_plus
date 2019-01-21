@@ -254,13 +254,17 @@ pub fn setup_page_table(frame: Frame) {
     p2.zero();
     p2.set_recursive(RECURSIVE_INDEX, frame);
 
+    extern {
+        fn start();
+        fn end();
+    }
+    let entry_start = start as usize >> 22;
+    let entry_end = (end as usize >> 22) + 1;
+
     // Set kernel identity map
-    // 0x10000000 ~ 1K area
-    p2.map_identity(0x40, EF::VALID | EF::READABLE | EF::WRITABLE);
-    // 0x80000000 ~ 12M area
-    p2.map_identity(KERNEL_P2_INDEX, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
-    p2.map_identity(KERNEL_P2_INDEX + 1, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
-    p2.map_identity(KERNEL_P2_INDEX + 2, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
+    for idx in entry_start..entry_end {
+        p2.map_identity(idx, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
+    }
 
     use super::riscv::register::satp;
     unsafe { satp::set(satp::Mode::Sv32, 0, frame); }
