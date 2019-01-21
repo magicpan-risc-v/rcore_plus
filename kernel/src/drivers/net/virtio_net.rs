@@ -37,12 +37,8 @@ impl Driver for VirtIONet {
         }
 
         // ensure header page is mapped
-        {
-            let mut table = active_table();
-            if let None = table.get_entry(self.header as usize) {
-                table.map(self.header as usize, self.header as usize);
-            }
-        }
+        active_table().map_if_not_exists(self.header as usize, self.header as usize);
+
         let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
