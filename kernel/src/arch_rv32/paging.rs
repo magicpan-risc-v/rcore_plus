@@ -1,16 +1,19 @@
-use super::consts::RECURSIVE_INDEX;
+use log::*;
+use rcore_memory::PAGE_SIZE;
+use rcore_memory::paging::*;
+
+use crate::consts::KERNEL_P2_INDEX;
 // Depends on kernel
 use crate::memory::{active_table, alloc_frame, dealloc_frame};
+
+use super::consts::RECURSIVE_INDEX;
 use super::riscv::addr::*;
 use super::riscv::asm::{sfence_vma, sfence_vma_all};
 use super::riscv::paging::{Mapper, PageTable as RvPageTable, PageTableEntry, PageTableFlags as EF, RecursivePageTable};
 use super::riscv::paging::{FrameAllocator, FrameDeallocator};
 use super::riscv::register::satp;
-use rcore_memory::paging::*;
-use log::*;
 
-use crate::consts::KERNEL_P2_INDEX;
-
+/// Implementation of `PageTable` trait
 pub struct ActivePageTable(RecursivePageTable<'static>, PageEntry);
 
 /// PageTableEntry: the contents of this entry.
@@ -18,15 +21,9 @@ pub struct ActivePageTable(RecursivePageTable<'static>, PageEntry);
 pub struct PageEntry(PageTableEntry, Page);
 
 impl PageTable for ActivePageTable {
-    /*
-    * @param:
-    *   addr: the virtual addr to be matched
-    *   target: the physical addr to be matched with addr
-    * @brief:
-    *   map the virtual address 'addr' to the physical address 'target' in pagetable.
-    * @retval:
-    *   the matched PageEntry
-    */
+
+    /// Map a page of virtual address `addr` to the frame of physic address `target`
+    /// Return the page table entry of the mapped virtual address
     fn map(&mut self, addr: usize, target: usize) -> &mut Entry {
         // use riscv::paging:Mapper::map_to,
         // map the 4K `page` to the 4K `frame` with `flags`
@@ -39,26 +36,15 @@ impl PageTable for ActivePageTable {
         self.get_entry(addr).expect("fail to get entry")
     }
 
-    /*
-    * @param:
-    *   addr: virtual address of which the mapped physical frame should be unmapped
-    * @bridf:
-    ^   unmap the virtual addresses' mapped physical frame
-    */
+    /// Unmap a page of virtual address `addr`
     fn unmap(&mut self, addr: usize) {
         let page = Page::of_addr(VirtAddr::new(addr));
         let (_, flush) = self.0.unmap(page).unwrap();
         flush.flush();
     }
 
-    /*
-    * @param:
-    *   addr: input virtual address
-    * @brief:
-    *   get the pageEntry of 'addr'
-    * @retval:
-    *   a mutable PageEntry reference of 'addr'
-    */
+    /// Get the page table entry of a page of virtual address `addr`
+    /// If its page do not exist, return `None`
     fn get_entry(&mut self, vaddr: usize) -> Option<&mut Entry> {
         let p2_table = unsafe { ROOT_PAGE_TABLE.as_mut().unwrap() };
         let page = Page::of_addr(VirtAddr::new(vaddr));
@@ -73,6 +59,10 @@ impl PageTable for ActivePageTable {
 
 impl PageTableExt for ActivePageTable {}
 
+/// Edit the page table entry of `page` in function `f`
+///
+/// Due to the translation rules in RISCV,
+/// we can access a P1 entry ** only when ** its upper P2 entry's flags contains 'VRW'.
 fn edit_entry_of<T>(page: &Page, f: impl FnOnce(&mut PageTableEntry) -> T) -> T {
     let p2_table = unsafe { ROOT_PAGE_TABLE.as_mut().unwrap() };
     let p1_table = unsafe {
@@ -88,7 +78,7 @@ fn edit_entry_of<T>(page: &Page, f: impl FnOnce(&mut PageTableEntry) -> T) -> T 
     ret
 }
 
-// define the ROOT_PAGE_TABLE, and the virtual address of it?
+/// Root page table at virtual address: (R, R+1, 0)
 const ROOT_PAGE_TABLE: *mut RvPageTable =
     (((RECURSIVE_INDEX << 10) | (RECURSIVE_INDEX + 1)) << 12) as *mut RvPageTable;
 
@@ -101,7 +91,7 @@ impl ActivePageTable {
     }
 }
 
-/// implementation for the Entry trait in /crate/memory/src/paging/mod.rs
+/// Implementation for the `Entry` trait in /crate/memory/src/paging/mod.rs
 impl Entry for PageEntry {
     fn update(&mut self) {
         edit_entry_of(&self.1, |entry| *entry = self.0);
@@ -139,6 +129,7 @@ impl Entry for PageEntry {
     fn set_mmio(&mut self, _value: u8) { }
 }
 
+/// Implementation of `InactivePageTable` trait
 #[derive(Debug)]
 pub struct InactivePageTable0 {
     root_frame: Frame,
@@ -157,11 +148,10 @@ impl InactivePageTable for InactivePageTable0 {
         InactivePageTable0 { root_frame: frame }
     }
 
-    /*
-    * @brief:
-    *   map the kernel code memory address (p2 page table) in the new inactive page table according the current active page table
-    */
+    /// Map kernel code area for this page table.
     fn map_kernel(&mut self) {
+        // Since all page table contains this area,
+        // just copy entries from the active page table.
         let table = unsafe { &mut *ROOT_PAGE_TABLE };
         extern {
             fn start();
@@ -199,13 +189,10 @@ impl InactivePageTable for InactivePageTable0 {
         sfence_vma_all();
     }
 
-    /*
-    * @param:
-    *   f: a function to do something with the temporary modified activate page table
-    * @brief:
-    *   temporarily make current `active_table`'s recursive entry point to
-    *    `this` inactive table, so we can modify this inactive page table.
-    */
+    /// Edit this page table in function `f`.
+    ///
+    /// Temporarily make current `active_table`'s recursive entry point to
+    /// `this` inactive table, so we can modify this.
     fn edit<T>(&mut self, f: impl FnOnce(&mut Self::Active) -> T) -> T {
         let target = satp::read().frame().start_address().as_u32() as usize;
         active_table().with_temporary_map(target, |active_table, root_table: &mut RvPageTable| {
@@ -233,6 +220,7 @@ impl Drop for InactivePageTable0 {
     }
 }
 
+/// Implementation of `riscv::paging::Frame(De)Allocator`
 struct FrameAllocatorForRiscv;
 
 impl FrameAllocator for FrameAllocatorForRiscv {
@@ -247,9 +235,14 @@ impl FrameDeallocator for FrameAllocatorForRiscv {
     }
 }
 
-/// setup page table in the frame, need 1 page
-/// param: Frame: page table root frame
-pub fn setup_page_table(frame: Frame) {
+/// Setup a simple page table and enable paging.
+pub fn setup_page_table() {
+    // Static alloc space for the root page table
+    #[repr(align(4096))]
+    struct PageData([u8; PAGE_SIZE]);
+    static PAGE_TABLE_ROOT: PageData = PageData([0; PAGE_SIZE]);
+    let frame = Frame::of_addr(PhysAddr::new(&PAGE_TABLE_ROOT as *const _ as u32));
+
     let p2 = unsafe { &mut *(frame.start_address().as_u32() as *mut RvPageTable) };
     p2.zero();
     p2.set_recursive(RECURSIVE_INDEX, frame);
@@ -266,6 +259,7 @@ pub fn setup_page_table(frame: Frame) {
         p2.map_identity(idx, EF::VALID | EF::READABLE | EF::WRITABLE | EF::EXECUTABLE);
     }
 
+    // Enable paging
     use super::riscv::register::satp;
     unsafe { satp::set(satp::Mode::Sv32, 0, frame); }
     sfence_vma_all();
