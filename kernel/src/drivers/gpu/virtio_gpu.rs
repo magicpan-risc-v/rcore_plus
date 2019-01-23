@@ -336,7 +336,7 @@ fn mandelbrot(width: u32, height: u32, frame_buffer: *mut u32) {
                 iter = iter + 1;
                 let new_re = re * re - im * im + xx as f32;
                 let new_im = re * im * 2.0 + yy as f32;
-                if new_re * new_re + new_im * new_im > 1e6 {
+                if new_re * new_re + new_im * new_im > 1e3 {
                     break;
                 }
                 re = new_re;

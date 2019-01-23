@@ -14,6 +14,11 @@ use crate::arch::cpu;
 use core::fmt::Write;
 
 pub extern fn server(_arg: usize) -> ! {
+    if NET_DRIVERS.lock().len() < 1 {
+        loop {
+            thread::yield_now();
+        }
+    }
 
     let mut driver = {
         let ref_driver = &mut *NET_DRIVERS.lock()[0];
@@ -83,7 +88,6 @@ pub extern fn server(_arg: usize) -> ! {
             }
         }
 
-        //thread::sleep(Duration::from_millis(10));
         thread::yield_now();
     }
 
