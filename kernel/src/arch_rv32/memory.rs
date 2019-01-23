@@ -1,38 +1,35 @@
-//! rv32 mermory management module
+//! Memory management module
 
 use core::mem;
-use super::riscv::{addr::*, register::sstatus};
-use rcore_memory::PAGE_SIZE;
+
 use log::*;
-use crate::memory::{FRAME_ALLOCATOR, init_heap, MemoryAttr, MemorySet, Linear};
-use super::consts::{MEMORY_OFFSET, MEMORY_END, KERN_VA_BASE};
+use rcore_memory::PAGE_SIZE;
+use crate::memory::{FRAME_ALLOCATOR, init_heap, Linear, MemoryAttr, MemorySet};
 
-/*
-* @brief:
-*   Init the memory management module, allow memory access and set up page table and init heap and frame allocator
-*/
+use super::consts::{KERN_VA_BASE, MEMORY_END, MEMORY_OFFSET};
+use super::riscv::{addr::*, register::sstatus};
+
+/// Initialize the memory management module.
 pub fn init(dtb: usize) {
-    #[repr(align(4096))]  // align the PageData struct to 4096 bytes
-    struct PageData([u8; PAGE_SIZE]);
-    static PAGE_TABLE_ROOT: PageData = PageData([0; PAGE_SIZE]);
-
-    unsafe { sstatus::set_sum(); }  // Allow user memory access
-    let frame = Frame::of_addr(PhysAddr::new(&PAGE_TABLE_ROOT as *const _ as u32));
-    super::paging::setup_page_table(frame); // set up page table
-    // initialize heap and Frame allocator
-    init_frame_allocator();
-    info!("init_frame_allocator end");
+    // allow user memory access
+    unsafe { sstatus::set_sum(); }
+    // initialize kernel heap
     init_heap();
-    info!("init_heap end");
+    // initialize frame allocator
+    init_frame_allocator();
+    // set up page table and enable paging
+    super::paging::setup_page_table();
     // remap the kernel use 4K page
     remap_the_kernel(dtb);
-    info!("remap_the_kernel end");
 }
 
+/// Initialize memory for other cores.
 pub fn init_other() {
     unsafe {
-        sstatus::set_sum();  // Allow user memory access
-        asm!("csrw 0x180, $0; sfence.vma" :: "r"(SATP) :: "volatile");
+        // allow user memory access
+        sstatus::set_sum();
+        // enable paging
+        asm!("csrw satp, $0; sfence.vma" :: "r"(SATP) :: "volatile");
     }
 }
 
@@ -55,6 +52,7 @@ fn init_frame_allocator() {
         assert!(page_start < page_end, "illegal range for frame allocator");
         page_start..page_end
     }
+    info!("init frame allocator end");
 }
 
 /// Remap the kernel memory address with 4K page recorded in p1 page table
@@ -70,6 +68,7 @@ fn remap_the_kernel(dtb: usize) {
     unsafe { ms.activate(); }
     unsafe { SATP = ms.token(); }
     mem::forget(ms);
+    info!("remap the kernel end");
 }
 
 // First core stores its SATP here.
@@ -86,7 +85,7 @@ pub unsafe fn clear_bss() {
     }
 }
 
-// Symbols provided by linker script
+/// Symbols provided by linker script
 #[allow(dead_code)]
 extern {
     fn stext();

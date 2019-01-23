@@ -10,11 +10,6 @@ BASE_ADDRESS = 0x80020000;
 
 SECTIONS
 {
-    . = 0x80000000;
-    .boot : {
-        KEEP(*(.text.boot))
-    }
-
     /* Load the kernel at this address: "." means the current address */
     . = BASE_ADDRESS;
     start = .;
@@ -50,5 +45,5 @@ SECTIONS
         ebss = .;
     }
 
-    PROVIDE(end = .);
+    end = .;
 }
