@@ -1,6 +1,7 @@
 use super::riscv::register::*;
 pub use self::context::*;
 use log::*;
+use super::drivers::DRIVERS;
 
 #[path = "context.rs"]
 mod context;
@@ -30,8 +31,12 @@ pub unsafe fn enable() {
     sstatus::set_sie();
 }
 
-/// store and disable interrupt
-/// retval:a usize value store the origin sie
+/*
+* @brief:
+*   store and disable interrupt
+* @retval:
+*   a usize value store the origin sie
+*/
 #[inline(always)]
 pub unsafe fn disable_and_store() -> usize {
     let e = sstatus::read().sie() as usize;
@@ -55,7 +60,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) {
     use self::scause::{Trap, Interrupt as I, Exception as E};
     trace!("Interrupt @ CPU{}: {:?} ", super::cpu::id(), tf.scause.cause());
     match tf.scause.cause() {
-        Trap::Interrupt(I::SupervisorExternal) => serial(),
+        Trap::Interrupt(I::SupervisorExternal) => external(),
         Trap::Interrupt(I::SupervisorSoft) => ipi(),
         Trap::Interrupt(I::SupervisorTimer) => timer(),
         Trap::Exception(E::UserEnvCall) => syscall(tf),
@@ -67,8 +72,34 @@ pub extern fn rust_trap(tf: &mut TrapFrame) {
     trace!("Interrupt end");
 }
 
-fn serial() {
-    crate::trap::serial(super::io::getchar());
+fn external() {
+    // true means handled, false otherwise
+    let handlers = [try_process_serial, try_process_drivers];
+    for handler in handlers.iter() {
+        if handler() == true {
+            break
+        }
+    }
+}
+
+fn try_process_serial() -> bool {
+    match super::io::getchar_option() {
+        Some(ch) => {
+            crate::trap::serial(ch);
+            true
+        }
+        None => false
+    }
+}
+
+fn try_process_drivers() -> bool {
+    let mut drivers = DRIVERS.lock();
+    for driver in drivers.iter_mut() {
+        if driver.try_handle_interrupt() == true {
+            return true
+        }
+    }
+    return false
 }
 
 fn ipi() {
