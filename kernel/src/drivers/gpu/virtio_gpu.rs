@@ -6,7 +6,7 @@ use crate::HEAP_ALLOCATOR;
 use alloc::alloc::{Layout, GlobalAlloc};
 use volatile::{Volatile, ReadOnly, WriteOnly};
 use core::mem::size_of;
-use super::super::{DRIVERS, Driver, NetDriver, DeviceType};
+use super::super::{DRIVERS, Driver, DeviceType};
 use log::*;
 use alloc::prelude::*;
 use crate::arch::cpu;
@@ -208,7 +208,6 @@ impl Driver for VirtIOGpu {
 }
 
 fn setup_rings(driver: &mut VirtIOGpu) {
-    let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
     let mut ring = unsafe { 
         &mut *((driver.queue_address + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
     };
@@ -337,13 +336,13 @@ fn mandelbrot(width: u32, height: u32, frame_buffer: *mut u32) {
                 iter = iter + 1;
                 let new_re = re * re - im * im + xx as f32;
                 let new_im = re * im * 2.0 + yy as f32;
-                if (new_re * new_re + new_im * new_im > 1e6) {
+                if new_re * new_re + new_im * new_im > 1e6 {
                     break;
                 }
                 re = new_re;
                 im = new_im;
 
-                if (iter == 60) {
+                if iter == 60 {
                     break;
                 }
             }
@@ -395,7 +394,7 @@ pub fn virtio_gpu_init(node: &Node) {
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
-    let mut device_features_bits: u64 = 0;
+    let mut device_features_bits: u64;
     header.device_features_sel.write(0); // device features [0, 32)
     device_features_bits = header.device_features.read().into();
     header.device_features_sel.write(1); // device features [32, 64)

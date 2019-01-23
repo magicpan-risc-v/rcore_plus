@@ -1,12 +1,13 @@
 mod device_tree;
 pub mod bus;
-mod net;
+pub mod net;
 mod gpu;
 
 use lazy_static::lazy_static;
 use alloc::prelude::*;
 use crate::sync::SpinNoIrqLock;
-use crate::net::{MacAddr, IPv4Addr};
+use smoltcp::wire::EthernetAddress;
+use core::any::Any;
 
 pub enum DeviceType {
     Net,
@@ -22,23 +23,33 @@ pub trait Driver : Send {
     fn device_type(&self) -> DeviceType;
 }
 
-pub trait NetDriver: Driver {
+pub trait NetDriver: Driver + AsAny {
     // send a packet from this device
     // return true on success, false otherwise
     fn send_packet(&mut self, payload: &[u8]) -> bool;
 
     // get mac address for this device
-    fn get_mac(&self) -> MacAddr;
-
-    // get ipv4 address for this device
-    fn get_ipv4(&self) -> IPv4Addr;
+    fn get_mac(&self) -> EthernetAddress;
 
     // get interface name for this device
     fn get_ifname(&self) -> String;
 }
 
+// little hack, see https://users.rust-lang.org/t/how-to-downcast-from-a-trait-any-to-a-struct/11219/3
+pub trait AsAny {
+    fn as_any(&self) -> &Any;
+}
+
+impl<T: Any> AsAny for T {
+    fn as_any(&self) -> &Any { self }
+}
+
 lazy_static! {
     pub static ref DRIVERS: SpinNoIrqLock<Vec<Box<Driver>>> = SpinNoIrqLock::new(Vec::new());
+}
+
+lazy_static! {
+    pub static ref NET_DRIVERS: SpinNoIrqLock<Vec<Box<NetDriver>>> = SpinNoIrqLock::new(Vec::new());
 }
 
 pub fn init(dtb: usize) {

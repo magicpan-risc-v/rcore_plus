@@ -11,17 +11,21 @@ use crate::HEAP_ALLOCATOR;
 use log::*;
 use alloc::prelude::*;
 use alloc::format;
-use super::super::{DRIVERS, Driver, NetDriver, DeviceType};
+use super::super::{NET_DRIVERS, DRIVERS, Driver, NetDriver, DeviceType};
 use crate::arch::cpu;
 use super::super::bus::virtio_mmio::*;
-use crate::net;
+use smoltcp::Result;
+use smoltcp::phy::{self, DeviceCapabilities};
+use smoltcp::time::Instant;
+use alloc::sync::Arc;
+use crate::sync::SpinNoIrqLock as Mutex;
+use smoltcp::wire::EthernetAddress;
 
-struct VirtIONet {
+pub struct VirtIONet {
     interrupt_parent: u32,
     interrupt: u32,
     header: usize,
-    mac: net::MacAddr,
-    ipv4_addr: net::IPv4Addr,
+    mac: EthernetAddress,
     queue_num: u32,
     // 0 for receive, 1 for transmit
     queue_address: [usize; 2],
@@ -29,17 +33,25 @@ struct VirtIONet {
     last_used_idx: [u16; 2],
 }
 
-impl Driver for VirtIONet {
+#[derive(Clone)]
+pub struct VirtIONetDriver(Arc<Mutex<VirtIONet>>);
+
+const VIRTIO_QUEUE_RECEIVE: usize = 0;
+const VIRTIO_QUEUE_TRANSMIT: usize = 1;
+
+impl Driver for VirtIONetDriver {
     fn try_handle_interrupt(&mut self) -> bool {
         // for simplicity
         if cpu::id() > 0 {
             return false
         }
 
-        // ensure header page is mapped
-        active_table().map_if_not_exists(self.header as usize, self.header as usize);
+        let mut driver = self.0.lock();
 
-        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        // ensure header page is mapped
+        active_table().map_if_not_exists(driver.header as usize, driver.header as usize);
+
+        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
             header.interrupt_ack.write(interrupt);
@@ -48,32 +60,15 @@ impl Driver for VirtIONet {
             if interrupt_status.contains(VirtIONetworkInterruptStatus::USED_RING_UPDATE) {
                 // 0 is receive queue
                 // need to change when queue_num is larger than one
-                for queue in 0..2 {
-                    let used_ring_offset = virtqueue_used_elem_offset(self.queue_num as usize, PAGE_SIZE);
-                    let mut used_ring = unsafe { 
-                        &mut *((self.queue_address[queue] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
-                    };
-                    let mut new_data_arrived = false;
-                    if self.last_used_idx[queue] < used_ring.idx.read() {
-                        assert_eq!(self.last_used_idx[queue], used_ring.idx.read() - 1);
-                        info!("Processing queue {} from {} to {}", queue, self.last_used_idx[queue], used_ring.idx.read());
-                        self.last_used_idx[queue] = used_ring.idx.read();
-                        new_data_arrived = true;
-                    }
-                    if new_data_arrived && queue == 0 {
-                        let mut payload = unsafe { slice::from_raw_parts_mut((self.queue_page[0] + 10) as *mut u8, PAGE_SIZE)};
-
-                        debug!("Got buffer {:X?}", &payload[0..200]);
-                        net::handle_packet(self, payload);
-                        for i in 0..PAGE_SIZE {
-                            payload[i] = 0;
-                        }
-                        let mut ring = unsafe { 
-                            &mut *((self.queue_address[0] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
-                        };
-                        ring.idx.write(ring.idx.read() + 1);
-                        header.queue_notify.write(0);
-                    }
+                let queue = VIRTIO_QUEUE_TRANSMIT;
+                let used_ring_offset = virtqueue_used_elem_offset(driver.queue_num as usize, PAGE_SIZE);
+                let mut used_ring = unsafe { 
+                    &mut *((driver.queue_address[queue] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
+                };
+                if driver.last_used_idx[queue] < used_ring.idx.read() {
+                    assert_eq!(driver.last_used_idx[queue], used_ring.idx.read() - 1);
+                    info!("Processing queue {} from {} to {}", queue, driver.last_used_idx[queue], used_ring.idx.read());
+                    driver.last_used_idx[queue] = used_ring.idx.read();
                 }
             } else if interrupt_status.contains(VirtIONetworkInterruptStatus::CONFIGURATION_CHANGE) {
                 // TODO: update mac and status
@@ -91,37 +86,60 @@ impl Driver for VirtIONet {
     }
 }
 
-impl NetDriver for VirtIONet {
-    fn get_mac(&self) -> net::MacAddr {
-        self.mac
+impl VirtIONet {
+    fn transmit_available(&self) -> bool {
+        let used_ring_offset = virtqueue_used_elem_offset(self.queue_num as usize, PAGE_SIZE);
+        let mut used_ring = unsafe { 
+            &mut *((self.queue_address[VIRTIO_QUEUE_TRANSMIT] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
+        };
+        let result = self.last_used_idx[VIRTIO_QUEUE_TRANSMIT] == used_ring.idx.read();
+        result
     }
 
-    fn get_ipv4(&self) -> net::IPv4Addr {
-        self.ipv4_addr
+
+    fn receive_available(&self) -> bool {
+        let used_ring_offset = virtqueue_used_elem_offset(self.queue_num as usize, PAGE_SIZE);
+        let mut used_ring = unsafe { 
+            &mut *((self.queue_address[VIRTIO_QUEUE_RECEIVE] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
+        };
+        let result = self.last_used_idx[VIRTIO_QUEUE_RECEIVE] < used_ring.idx.read();
+        result
+    }
+}
+
+impl NetDriver for VirtIONetDriver {
+    fn get_mac(&self) -> EthernetAddress {
+        self.0.lock().mac
     }
 
     fn get_ifname(&self) -> String {
-        format!("virtio{}", self.interrupt)
+        format!("virtio{}", self.0.lock().interrupt)
     }
 
     fn send_packet(&mut self, payload: &[u8]) -> bool {
+        let mut driver = self.0.lock();
+        // check that no buffer is transmitting
+        if !driver.transmit_available() {
+            return false;
+        }
+
         debug!("Sending payload {:?}", payload);
         // assuming packet not too large and no buffer is transmitting
-        let payload_target = unsafe { slice::from_raw_parts_mut((self.queue_page[1] + 10) as *mut u8, payload.len())};
+        let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + 10) as *mut u8, payload.len())};
         payload_target.clone_from_slice(payload);
-        let mut net_header = unsafe { &mut *(self.queue_page[1] as *mut VirtIONetHeader) };
+        let mut net_header = unsafe { &mut *(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIONetHeader) };
         net_header.hdr_len.write(payload.len() as u16);
 
-        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
         // 1 for transmitq
         let mut ring = unsafe { 
-            &mut *((self.queue_address[1] + size_of::<VirtIOVirtqueueDesc>() * self.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+            &mut *((driver.queue_address[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
         };
 
         // re-add buffer to desc
-        let mut desc = unsafe { &mut *(self.queue_address[1] as *mut VirtIOVirtqueueDesc) };
-        desc.addr.write(self.queue_page[1] as u64);
-        desc.len.write(PAGE_SIZE as u32);
+        let mut desc = unsafe { &mut *(driver.queue_address[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIOVirtqueueDesc) };
+        desc.addr.write(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as u64);
+        desc.len.write(payload.len() as u32 + 10);
 
         // memory barrier
         unsafe {
@@ -132,6 +150,113 @@ impl NetDriver for VirtIONet {
         ring.idx.write(ring.idx.read() + 1);
         header.queue_notify.write(1);
         true
+    }
+
+}
+
+pub struct VirtIONetRxToken(VirtIONetDriver);
+pub struct VirtIONetTxToken(VirtIONetDriver);
+
+impl<'a> phy::Device<'a> for VirtIONetDriver {
+    type RxToken = VirtIONetRxToken;
+    type TxToken = VirtIONetTxToken;
+
+    fn receive(&'a mut self) -> Option<(Self::RxToken, Self::TxToken)> {
+        let driver = self.0.lock();
+        if driver.transmit_available() && driver.receive_available() {
+            // ugly borrow rules bypass
+            Some((VirtIONetRxToken(self.clone()),
+                VirtIONetTxToken(self.clone())))
+        } else {
+            None
+        }
+    }
+
+    fn transmit(&'a mut self) -> Option<Self::TxToken> {
+        let driver = self.0.lock();
+        if driver.transmit_available() {
+            Some(VirtIONetTxToken(self.clone()))
+        } else {
+            None
+        }
+    }
+
+    fn capabilities(&self) -> DeviceCapabilities {
+        let mut caps = DeviceCapabilities::default();
+        caps.max_transmission_unit = 1536;
+        caps.max_burst_size = Some(1);
+        caps
+    }
+}
+
+impl phy::RxToken for VirtIONetRxToken { 
+    fn consume<R, F>(self, timestamp: Instant, f: F) -> Result<R>
+        where F: FnOnce(&[u8]) -> Result<R>
+    {
+        let buffer = {
+            let mut driver = (self.0).0.lock();
+
+            // ensure header page is mapped
+            active_table().map_if_not_exists(driver.header as usize, driver.header as usize);
+
+            let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
+            let used_ring_offset = virtqueue_used_elem_offset(driver.queue_num as usize, PAGE_SIZE);
+            let mut used_ring = unsafe { 
+                &mut *((driver.queue_address[VIRTIO_QUEUE_RECEIVE] + used_ring_offset) as *mut VirtIOVirtqueueUsedRing) 
+            };
+            assert!(driver.last_used_idx[VIRTIO_QUEUE_RECEIVE] == used_ring.idx.read() - 1);
+            driver.last_used_idx[VIRTIO_QUEUE_RECEIVE] = used_ring.idx.read();
+            let mut payload = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_RECEIVE] + 10) as *mut u8, PAGE_SIZE - 10)};
+            let buffer = payload.to_vec();
+            for i in 0..(PAGE_SIZE - 10) {
+                payload[i] = 0;
+            }
+
+            let mut ring = unsafe { 
+                &mut *((driver.queue_address[VIRTIO_QUEUE_RECEIVE] + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+            };
+            ring.idx.write(ring.idx.read() + 1);
+            header.queue_notify.write(VIRTIO_QUEUE_RECEIVE as u32);
+            buffer
+        };
+        f(&buffer)
+    }
+}
+
+impl phy::TxToken for VirtIONetTxToken {
+    fn consume<R, F>(self, _timestamp: Instant, len: usize, f: F) -> Result<R>
+        where F: FnOnce(&mut [u8]) -> Result<R>,
+    {
+        let mut driver = (self.0).0.lock();
+
+        // ensure header page is mapped
+        active_table().map_if_not_exists(driver.header as usize, driver.header as usize);
+
+        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
+        let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + 10) as *mut u8, len)};
+        let result = f(payload_target);
+        let mut net_header = unsafe { &mut *(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIONetHeader) };
+
+        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
+        // 1 for transmitq
+        let mut ring = unsafe { 
+            &mut *((driver.queue_address[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
+        };
+
+        // re-add buffer to desc
+        let mut desc = unsafe { &mut *(driver.queue_address[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIOVirtqueueDesc) };
+        desc.addr.write(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as u64);
+        desc.len.write(len as u32 + 10);
+
+        // memory barrier
+        unsafe {
+            asm!("fence" ::: "memory");
+        }
+        
+        // add desc to available ring
+        ring.idx.write(ring.idx.read() + 1);
+        header.queue_notify.write(VIRTIO_QUEUE_TRANSMIT as u32);
+        result
     }
 }
 
@@ -211,7 +336,7 @@ pub fn virtio_net_init(node: &Node) {
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
-    let mut device_features_bits: u64 = 0;
+    let mut device_features_bits: u64;
     header.device_features_sel.write(0); // device features [0, 32)
     device_features_bits = header.device_features.read().into();
     header.device_features_sel.write(1); // device features [32, 64)
@@ -239,17 +364,17 @@ pub fn virtio_net_init(node: &Node) {
     // configure two virtqueues: ingress and egress
     header.guest_page_size.write(PAGE_SIZE as u32); // one page
 
+
     let queue_num = 1; // for simplicity
     let mut driver = VirtIONet {
         interrupt: node.prop_u32("interrupts").unwrap(),
         interrupt_parent: node.prop_u32("interrupt-parent").unwrap(),
         header: from as usize,
-        mac: net::MacAddr::from(mac),
-        ipv4_addr: net::IPv4Addr::from([10, 0, 0, 2]), // hardcoded for now
+        mac: EthernetAddress(mac),
         queue_num: queue_num,
         queue_address: [0, 0],
         queue_page: [0, 0],
-        last_used_idx: [0, 0]
+        last_used_idx: [0, 0],
     };
 
     // 0 for receive, 1 for transmit
@@ -308,5 +433,9 @@ pub fn virtio_net_init(node: &Node) {
     }
 
     header.status.write(VirtIODeviceStatus::DRIVER_OK.bits());
-    DRIVERS.lock().push(Box::new(driver));
+
+    let mut net_driver = VirtIONetDriver(Arc::new(Mutex::new(driver)));
+
+    DRIVERS.lock().push(Box::new(net_driver.clone()));
+    NET_DRIVERS.lock().push(Box::new(net_driver));
 }
