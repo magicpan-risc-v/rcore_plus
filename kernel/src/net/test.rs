@@ -3,14 +3,11 @@ use crate::drivers::NET_DRIVERS;
 use smoltcp::wire::*;
 use smoltcp::iface::*;
 use smoltcp::socket::*;
-use smoltcp::phy::Device;
 use alloc::collections::BTreeMap;
 use crate::drivers::NetDriver;
 use crate::drivers::net::virtio_net::VirtIONetDriver;
 use alloc::vec;
 use smoltcp::time::Instant;
-use core::time::Duration;
-use crate::arch::cpu;
 use core::fmt::Write;
 
 pub extern fn server(_arg: usize) -> ! {

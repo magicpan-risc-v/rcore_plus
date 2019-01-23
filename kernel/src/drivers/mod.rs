@@ -24,10 +24,6 @@ pub trait Driver : Send {
 }
 
 pub trait NetDriver: Driver + AsAny {
-    // send a packet from this device
-    // return true on success, false otherwise
-    fn send_packet(&mut self, payload: &[u8]) -> bool;
-
     // get mac address for this device
     fn get_mac(&self) -> EthernetAddress;
 

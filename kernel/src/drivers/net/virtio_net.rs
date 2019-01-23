@@ -58,7 +58,6 @@ impl Driver for VirtIONetDriver {
             let interrupt_status = VirtIONetworkInterruptStatus::from_bits_truncate(interrupt);
             debug!("Got interrupt {:?}", interrupt_status);
             if interrupt_status.contains(VirtIONetworkInterruptStatus::USED_RING_UPDATE) {
-                // 0 is receive queue
                 // need to change when queue_num is larger than one
                 let queue = VIRTIO_QUEUE_TRANSMIT;
                 let used_ring_offset = virtqueue_used_elem_offset(driver.queue_num as usize, PAGE_SIZE);
@@ -116,42 +115,6 @@ impl NetDriver for VirtIONetDriver {
         format!("virtio{}", self.0.lock().interrupt)
     }
 
-    fn send_packet(&mut self, payload: &[u8]) -> bool {
-        let mut driver = self.0.lock();
-        // check that no buffer is transmitting
-        if !driver.transmit_available() {
-            return false;
-        }
-
-        debug!("Sending payload {:?}", payload);
-        // assuming packet not too large and no buffer is transmitting
-        let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + 10) as *mut u8, payload.len())};
-        payload_target.clone_from_slice(payload);
-        let mut net_header = unsafe { &mut *(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIONetHeader) };
-        net_header.hdr_len.write(payload.len() as u16);
-
-        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
-        // 1 for transmitq
-        let mut ring = unsafe { 
-            &mut *((driver.queue_address[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
-        };
-
-        // re-add buffer to desc
-        let mut desc = unsafe { &mut *(driver.queue_address[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIOVirtqueueDesc) };
-        desc.addr.write(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as u64);
-        desc.len.write(payload.len() as u32 + 10);
-
-        // memory barrier
-        unsafe {
-            asm!("fence" ::: "memory");
-        }
-        
-        // add desc to available ring
-        ring.idx.write(ring.idx.read() + 1);
-        header.queue_notify.write(1);
-        true
-    }
-
 }
 
 pub struct VirtIONetRxToken(VirtIONetDriver);
@@ -206,9 +169,9 @@ impl phy::RxToken for VirtIONetRxToken {
             };
             assert!(driver.last_used_idx[VIRTIO_QUEUE_RECEIVE] == used_ring.idx.read() - 1);
             driver.last_used_idx[VIRTIO_QUEUE_RECEIVE] = used_ring.idx.read();
-            let mut payload = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_RECEIVE] + 10) as *mut u8, PAGE_SIZE - 10)};
+            let mut payload = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_RECEIVE] + size_of::<VirtIONetHeader>()) as *mut u8, PAGE_SIZE - 10)};
             let buffer = payload.to_vec();
-            for i in 0..(PAGE_SIZE - 10) {
+            for i in 0..(PAGE_SIZE - size_of::<VirtIONetHeader>()) {
                 payload[i] = 0;
             }
 
@@ -233,12 +196,11 @@ impl phy::TxToken for VirtIONetTxToken {
         active_table().map_if_not_exists(driver.header as usize, driver.header as usize);
 
         let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
-        let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + 10) as *mut u8, len)};
+        let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIONetHeader>()) as *mut u8, len)};
         let result = f(payload_target);
         let mut net_header = unsafe { &mut *(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIONetHeader) };
 
         let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
-        // 1 for transmitq
         let mut ring = unsafe { 
             &mut *((driver.queue_address[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIOVirtqueueDesc>() * driver.queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
         };
@@ -246,7 +208,7 @@ impl phy::TxToken for VirtIONetTxToken {
         // re-add buffer to desc
         let mut desc = unsafe { &mut *(driver.queue_address[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIOVirtqueueDesc) };
         desc.addr.write(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as u64);
-        desc.len.write(len as u32 + 10);
+        desc.len.write((len + size_of::<VirtIONetHeader>()) as u32);
 
         // memory barrier
         unsafe {
@@ -314,7 +276,6 @@ struct VirtIONetworkConfig {
     status: ReadOnly<u16>
 }
 
-
 // virtio 5.1.6 Device Operation
 #[repr(packed)]
 #[derive(Debug)]
@@ -325,7 +286,7 @@ struct VirtIONetHeader {
     gso_size: Volatile<u16>,
     csum_start: Volatile<u16>,
     csum_offset: Volatile<u16>,
-    payload: [u8; 1] // actual size unknown
+    // payload starts from here
 }
 
 
@@ -364,7 +325,6 @@ pub fn virtio_net_init(node: &Node) {
     // configure two virtqueues: ingress and egress
     header.guest_page_size.write(PAGE_SIZE as u32); // one page
 
-
     let queue_num = 1; // for simplicity
     let mut driver = VirtIONet {
         interrupt: node.prop_u32("interrupts").unwrap(),
@@ -379,7 +339,7 @@ pub fn virtio_net_init(node: &Node) {
 
     // 0 for receive, 1 for transmit
     for queue in 0..2 {
-        header.queue_sel.write(queue);
+        header.queue_sel.write(queue as u32);
         assert_eq!(header.queue_pfn.read(), 0); // not in use
         let queue_num_max = header.queue_num_max.read();
         assert!(queue_num_max >= queue_num); // queue available
@@ -389,7 +349,7 @@ pub fn virtio_net_init(node: &Node) {
         let address = unsafe {
             HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(size, PAGE_SIZE).unwrap())
         } as usize;
-        driver.queue_address[queue as usize] = address;
+        driver.queue_address[queue] = address;
         debug!("queue {} using page address {:#X} with size {}", queue, address as usize, size);
 
         header.queue_num.write(queue_num);
@@ -400,16 +360,16 @@ pub fn virtio_net_init(node: &Node) {
         let page = unsafe {
             HEAP_ALLOCATOR.alloc_zeroed(Layout::from_size_align(PAGE_SIZE, PAGE_SIZE).unwrap())
         } as usize;
-        driver.queue_page[queue as usize] = page;
+        driver.queue_page[queue] = page;
 
         // fill first desc
         let mut desc = unsafe { &mut *(address as *mut VirtIOVirtqueueDesc) };
         desc.addr.write(page as u64);
         desc.len.write(PAGE_SIZE as u32);
-        if queue == 0 {
+        if queue == VIRTIO_QUEUE_RECEIVE {
             // device writable
             desc.flags.write(VirtIOVirtqueueFlag::WRITE.bits());
-        } else {
+        } else if queue == VIRTIO_QUEUE_TRANSMIT {
             // driver readable
             desc.flags.write(0);
         }
@@ -417,7 +377,8 @@ pub fn virtio_net_init(node: &Node) {
         unsafe {
             asm!("fence" ::: "memory");
         }
-        if queue == 0 {
+
+        if queue == VIRTIO_QUEUE_RECEIVE {
             // add the desc to the ring
             let mut ring = unsafe { 
                 &mut *((address + size_of::<VirtIOVirtqueueDesc>() * queue_num as usize) as *mut VirtIOVirtqueueAvailableRing) 
@@ -428,7 +389,7 @@ pub fn virtio_net_init(node: &Node) {
         }
 
         // notify device about the new buffer
-        header.queue_notify.write(queue);
+        header.queue_notify.write(queue as u32);
         debug!("queue {} using page address {:#X}", queue, page);
     }
 
