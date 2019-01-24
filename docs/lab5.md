@@ -108,31 +108,25 @@ Box::new(Process {
 在实验4中，我们构造新`struct Process`时，第一个域的值由`ArchContext::new_kernel_thread`给出。
 这两者有何不同？
 我们知道用户进程和内核线程的主要区别在于地址空间和特权级，`Process::memory_set`域影响了地址空间，我们可以推测`Process::arch`会影响特权级。
-我们在下一小结讲解用户进程启动时再进行详细的分析。
+我们在下一小节讲解用户进程启动时再进行详细的分析。
 
 ### 用户进程启动
 
-上一小结提到的`new_user_thread`如下所示，和`new_kernel_thread`的主要差别是此处的`cr3`为用户程序页表基地址，另外还在用户程序的内核栈上使用`TrapFrame::new_user_thread`构造了一个特殊中断帧。
+上一小节提到的`new_user_thread`如下所示，和`new_kernel_thread`的主要差别是此处的`satp`为用户程序页表基地址，另外还在用户程序的内核栈上使用`TrapFrame::new_user_thread`构造了一个特殊中断帧。
 
 ```rust
 pub struct Context(usize);
 
 impl Context {
-    /*
-     * @param:
-     *   entry_addr: program entry for the thread
-     *   ustack_top: user stack top
-     *   kstack_top: kernel stack top
-     *   is32: whether the cpu is 32 bit or not
-     *   cr3: cr3 register, save the physical address of Page directory
-     * @brief:
-     *   generate the content of kernel stack for the new user thread and save it's address at kernel stack top - 1
-     * @retval:
-     *   a Context struct with the pointer to the kernel stack top - 1 as its only element
-     */
-    pub unsafe fn new_user_thread(entry_addr: usize, ustack_top: usize, kstack_top: usize, _is32: bool, cr3: usize) -> Self {
+    ......
+    /// Constructs Context for a new user thread.
+    ///
+    /// The new thread starts at `entry_addr`.
+    /// The stack pointer of user and kernel mode will be set to `ustack_top`, `kstack_top`.
+    /// The SATP register will be set to `satp`.
+    pub unsafe fn new_user_thread(entry_addr: usize, ustack_top: usize, kstack_top: usize, _is32: bool, satp: usize) -> Self {
         InitStack {
-            context: ContextData::new(cr3),
+            context: ContextData::new(satp),
             tf: TrapFrame::new_user_thread(entry_addr, ustack_top),
         }.push_at(kstack_top)
     }
@@ -144,31 +138,28 @@ impl Context {
 2. `tf.sepc = entry_addr`：将中断帧中对应`epc`寄存器的位置设为用户程序入口
 3. `tf.sstatus.set_spp(xstatus::SPP::User)`：将中断帧中对应`sstatus`寄存器的`SPP`域设为`U`，即中断返回到用户态
 
-其余部分与实验三中基本相同。
+其余部分与实验4中描述的new_kernel_thread函数内容基本相同。
 
 ```rust
 /// Generate the trapframe for building new thread in kernel
 impl TrapFrame {
-    /*
-     * @param:
-     *   entry_addr: program entry for the thread
-     *   sp: stack top
-     * @brief:
-     *   generate a trapfram for building a new user thread
-     * @retval:
-     *   the trapframe for new user thread
-     */
+    ......
+    /// Constructs TrapFrame for a new user thread.
+    ///
+    /// The new thread starts at `entry_addr`.
+    /// The stack pointer will be set to `sp`.
     fn new_user_thread(entry_addr: usize, sp: usize) -> Self {
         use core::mem::zeroed;
         let mut tf: Self = unsafe { zeroed() };
-        tf.x[2] = sp;
-        tf.sepc = entry_addr;
-        tf.sstatus = xstatus::read();
-        tf.sstatus.set_xpie(true);
-        tf.sstatus.set_xie(false);
-        tf.sstatus.set_spp(xstatus::SPP::User);
+        tf.x[2] = sp;                   
+        tf.sepc = entry_addr;           
+        tf.sstatus = sstatus::read();
+        tf.sstatus.set_spie(true);
+        tf.sstatus.set_sie(false);
+        tf.sstatus.set_spp(sstatus::SPP::User); 
         tf
     }
+}
 }
 ```
 
@@ -210,27 +201,7 @@ fn sys_call(syscall_id: SyscallId, arg0: usize, arg1: usize, arg2: usize, arg3: 
 enum SyscallId{
     Exit = 1,
     Fork = 2,
-    Wait = 3,
-    Exec = 4,
-    Clone = 5,
-    Yield = 10,
-    Sleep = 11,
-    Kill = 12,
-    GetTime = 17,
-    GetPid = 18,
-    Mmap = 20,
-    Munmap = 21,
-    Shmem = 22,
-    Putc = 30,
-    Pgdir = 31,
-    Open = 100,
-    Close = 101,
-    Read = 102,
-    Write = 103,
-    Seek = 104,
-    Fstat = 110,
-    Fsync = 111,
-    GetCwd = 121,
+    ......
     GetDirEntry = 128,
     Dup = 130,
     Lab6SetPriority = 255,
@@ -248,12 +219,8 @@ pub fn sys_sleep(time: usize) -> i32 {
 进入内核态的中断处理例程后，会调用内核中的`syscall`函数。
 
 ```rust
-/*
- * @param:
- *   TrapFrame: the trapFrame of the Interrupt/Exception/Trap to be processed
- * @brief:
- *   process the Interrupt/Exception/Trap
- */
+/// process the Interrupt/Exception/Trap
+/// param: TrapFrame: the trapFrame of the Interrupt/Exception/Trap
 #[no_mangle]
 pub extern fn rust_trap(tf: &mut TrapFrame) {
     use self::mcause::{Trap, Interrupt as I, Exception as E};
@@ -266,12 +233,8 @@ pub extern fn rust_trap(tf: &mut TrapFrame) {
     trace!("Interrupt end");
 }
 
-/*
- * @param:
- *   TrapFrame: the Trapframe for the syscall
- * @brief:
- *   process syscall
- */
+/// process syscall
+/// param: TrapFrame: the Trapframe for the syscall
 fn syscall(tf: &mut TrapFrame) {
     tf.sepc += 4;   // Must before syscall, because of fork.
     let ret = crate::syscall::syscall(tf.x[10], [tf.x[11], tf.x[12], tf.x[13], tf.x[14], tf.x[15], tf.x[16]], tf);

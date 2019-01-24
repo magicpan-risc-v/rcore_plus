@@ -43,12 +43,12 @@ impl TrapFrame {
     fn new_user_thread(entry_addr: usize, sp: usize) -> Self {
         use core::mem::zeroed;
         let mut tf: Self = unsafe { zeroed() };
-        tf.x[2] = sp;
-        tf.sepc = entry_addr;
+        tf.x[2] = sp;                   //将中断帧中对应sp寄存器的位置设为用户栈
+        tf.sepc = entry_addr;           //将中断帧中对应epc寄存器的位置设为用户程序入口
         tf.sstatus = sstatus::read();
         tf.sstatus.set_spie(true);
         tf.sstatus.set_sie(false);
-        tf.sstatus.set_spp(sstatus::SPP::User);
+        tf.sstatus.set_spp(sstatus::SPP::User); //将中断帧中对应sstatus寄存器的SPP域设为U，即中断返回到用户态
         tf
     }
 }
