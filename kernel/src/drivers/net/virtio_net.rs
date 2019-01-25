@@ -297,28 +297,19 @@ pub fn virtio_net_init(node: &Node) {
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
-    let mut device_features_bits: u64;
-    header.device_features_sel.write(0); // device features [0, 32)
-    device_features_bits = header.device_features.read().into();
-    header.device_features_sel.write(1); // device features [32, 64)
-    device_features_bits = device_features_bits + ((header.device_features.read() as u64) << 32);
+    let device_features_bits = header.read_device_features();
     let device_features = VirtIONetFeature::from_bits_truncate(device_features_bits);
     debug!("Device features {:?}", device_features);
 
     // negotiate these flags only
     let supported_features = VirtIONetFeature::MAC | VirtIONetFeature::STATUS;
     let driver_features = (device_features & supported_features).bits();
-    header.driver_features_sel.write(0); // driver features [0, 32)
-    header.driver_features.write((driver_features & 0xFFFFFFFF) as u32);
-    header.driver_features_sel.write(1); // driver features [32, 64)
-    header.driver_features.write(((driver_features & 0xFFFFFFFF00000000) >> 32) as u32);
+    header.write_driver_features(driver_features);
 
     // read configuration space
-    let mut mac: [u8; 6];
-    let mut status: VirtIONetworkStatus;
-    let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIONetworkConfig) };
-    mac = config.mac;
-    status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
+    let mut config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIONetworkConfig) };
+    let mut mac = config.mac;
+    let mut status = VirtIONetworkStatus::from_bits_truncate(config.status.read());
     debug!("Got MAC address {:?} and status {:?}", mac, status);
 
     // virtio 4.2.4 Legacy interface

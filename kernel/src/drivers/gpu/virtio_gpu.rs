@@ -13,6 +13,7 @@ use crate::arch::cpu;
 use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
 use core::slice;
+use super::test::mandelbrot;
 
 const VIRTIO_GPU_EVENT_DISPLAY : u32 = 1 << 0;
 
@@ -300,64 +301,6 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
     flush_frame_buffer_to_screen(driver);
 }
 
-// from Wikipedia
-fn hsv_to_rgb(h: u32, s: f32, v: f32) -> (f32, f32, f32) {
-    let hi = (h / 60) % 6;
-    let f = (h % 60) as f32 / 60.0;
-    let p = v * (1.0 - s);
-    let q = v * (1.0 - f * s);
-    let t = v * (1.0 - (1.0 - f) * s);
-    match hi {
-        0 => (v, t, p),
-        1 => (q, v, p),
-        2 => (p, v, t),
-        3 => (p, q, v),
-        4 => (t, p, v),
-        5 => (v, p, q),
-        _ => unreachable!()
-    }
-}
-
-fn mandelbrot(width: u32, height: u32, frame_buffer: *mut u32) {
-    let size = width * height * 4;
-    let frame_buffer_data = unsafe {
-        slice::from_raw_parts_mut(frame_buffer as *mut u32, (size / 4) as usize)
-    };
-    for x in 0..width {
-        for y in 0..height {
-            let index = y * width + x;
-            let scale = 5e-3;
-            let xx = (x as f32 - width as f32 / 2.0) * scale;
-            let yy = (y as f32 - height as f32 / 2.0) * scale;
-            let mut re = xx as f32;
-            let mut im = yy as f32;
-            let mut iter: u32 = 0;
-            loop {
-                iter = iter + 1;
-                let new_re = re * re - im * im + xx as f32;
-                let new_im = re * im * 2.0 + yy as f32;
-                if new_re * new_re + new_im * new_im > 1e3 {
-                    break;
-                }
-                re = new_re;
-                im = new_im;
-
-                if iter == 60 {
-                    break;
-                }
-            }
-            iter = iter * 6;
-            let (r, g, b) = hsv_to_rgb(iter, 1.0, 0.5);
-            let rr = (r * 256.0) as u32;
-            let gg = (g * 256.0) as u32;
-            let bb = (b * 256.0) as u32;
-            let color = (bb << 16) | (gg << 8) | rr;
-            frame_buffer_data[index as usize] = color;
-        }
-        println!("working on x {}/{}", x, width);
-    }
-}
-
 fn flush_frame_buffer_to_screen(driver: &mut VirtIOGpu) {
     // copy data from guest to host
     setup_rings(driver);
@@ -394,24 +337,17 @@ pub fn virtio_gpu_init(node: &Node) {
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
-    let mut device_features_bits: u64;
-    header.device_features_sel.write(0); // device features [0, 32)
-    device_features_bits = header.device_features.read().into();
-    header.device_features_sel.write(1); // device features [32, 64)
-    device_features_bits = device_features_bits + ((header.device_features.read() as u64) << 32);
+    let device_features_bits = header.read_device_features();
     let device_features = VirtIOGpuFeature::from_bits_truncate(device_features_bits);
     info!("Device features {:?}", device_features);
 
     // negotiate these flags only
     let supported_features = VirtIOGpuFeature::empty();
     let driver_features = (device_features & supported_features).bits();
-    header.driver_features_sel.write(0); // driver features [0, 32)
-    header.driver_features.write((driver_features & 0xFFFFFFFF) as u32);
-    header.driver_features_sel.write(1); // driver features [32, 64)
-    header.driver_features.write(((driver_features & 0xFFFFFFFF00000000) >> 32) as u32);
+    header.write_driver_features(driver_features);
 
     // read configuration space
-    let mut config = unsafe { &mut *((from + 0x100) as *mut VirtIOGpuConfig) };
+    let mut config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIOGpuConfig) };
     info!("Config: {:?}", config);
 
     // virtio 4.2.4 Legacy interface

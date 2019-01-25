@@ -5,6 +5,7 @@
 #   make doc                    Generate docs
 #   make asm                    Open the deassemble file of the last build
 #   make header                 Open 'objdump -h' of the last build
+#   make addrline               Use addr2line to recover line info in backtrace
 #   make clean                  Clean
 #
 # Options:
@@ -156,3 +157,7 @@ kernel:
 ### user programs ###
 sfsimg:
 	@cd $(user_dir) && make sfsimg
+
+.PHONY:
+addr2line:
+	@python3 ../tools/addr2line.py $(prefix)addr2line $(arch)
