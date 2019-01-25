@@ -39,3 +39,9 @@ pub unsafe fn start_others(hart_mask: usize) {
 pub fn halt() {
     unsafe { super::riscv::asm::wfi() }
 }
+
+pub fn cpu_relax() {
+    unsafe {
+        asm!("nop" :::: "volatile");
+    }
+}

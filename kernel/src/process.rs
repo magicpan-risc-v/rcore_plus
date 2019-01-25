@@ -30,8 +30,9 @@ pub fn init() {
     }
     crate::shell::run_user_shell();
 
-    // processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_mutex, 0), 0);
-    processor().manager().add(Process::new_kernel(crate::net::server, 0), 0);
+    processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_mutex, 0), 0);
+    processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_monitor, 0), 0);
+    //processor().manager().add(Process::new_kernel(crate::net::server, 0), 0);
 
     info!("process init end");
 }

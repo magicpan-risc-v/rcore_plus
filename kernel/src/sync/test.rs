@@ -88,11 +88,11 @@ impl Table for MonitorTable {
 
 fn philosopher(table: Arc<Table>) {
     let philosophers = vec![
-        Philosopher::new("1", 0, 1),
-        Philosopher::new("2", 1, 2),
-        Philosopher::new("3", 2, 3),
-        Philosopher::new("4", 3, 4),
-        Philosopher::new("5", 0, 4),
+        Philosopher::new("P1", 0, 1),
+        Philosopher::new("P2", 1, 2),
+        Philosopher::new("P3", 2, 3),
+        Philosopher::new("P4", 3, 4),
+        Philosopher::new("P5", 0, 4),
     ];
 
     let handles: Vec<_> = philosophers.into_iter().map(|p| {

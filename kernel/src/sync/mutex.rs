@@ -26,7 +26,7 @@
 //! `MutexSupport`提供了若干接口，它们会在操作锁的不同时间点被调用。
 //! 注意这个接口实际是取了几种实现的并集，并不是很通用。
 
-use crate::arch::interrupt;
+use crate::arch::{cpu,interrupt};
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
@@ -212,9 +212,7 @@ impl MutexSupport for Spin {
 
     fn new() -> Self { Spin }
     fn cpu_relax(&self) {
-        unsafe {
-                asm!("nop" :::: "volatile");
-        }
+        unsafe {cpu::cpu_relax();};
     }
     fn before_lock() -> Self::GuardData {}
     fn after_unlock(&self) {}
@@ -239,9 +237,7 @@ impl MutexSupport for SpinNoIrq {
         SpinNoIrq
     }
     fn cpu_relax(&self) {
-        unsafe {
-                asm!("nop" :::: "volatile");
-        }
+        unsafe {cpu::cpu_relax();};
     }
     fn before_lock() -> Self::GuardData {
         FlagsGuard(unsafe { interrupt::disable_and_store() })
