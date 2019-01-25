@@ -49,6 +49,26 @@ pub struct VirtIOHeader {
     config_generation: ReadOnly<u32>
 }
 
+pub const VIRTIO_CONFIG_SPACE_OFFSET: u64 = 0x100;
+
+impl VirtIOHeader {
+    pub fn read_device_features(&mut self) -> u64 {
+        let mut device_features_bits: u64;
+        self.device_features_sel.write(0); // device features [0, 32)
+        device_features_bits = self.device_features.read().into();
+        self.device_features_sel.write(1); // device features [32, 64)
+        device_features_bits = device_features_bits + ((self.device_features.read() as u64) << 32);
+        device_features_bits
+    }
+
+    pub fn write_driver_features(&mut self, driver_features: u64) {
+        self.driver_features_sel.write(0); // driver features [0, 32)
+        self.driver_features.write((driver_features & 0xFFFFFFFF) as u32);
+        self.driver_features_sel.write(1); // driver features [32, 64)
+        self.driver_features.write(((driver_features & 0xFFFFFFFF00000000) >> 32) as u32);
+    }
+}
+
 bitflags! {
     pub struct VirtIODeviceStatus : u32 {
         const ACKNOWLEDGE = 1;
