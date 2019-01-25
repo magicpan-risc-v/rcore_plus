@@ -9,7 +9,7 @@ use rcore_memory::paging::PageTable;
 use core::mem::size_of;
 
 // virtio 4.2.4 Legacy interface
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct VirtIOHeader {
     magic: ReadOnly<u32>, // 0x000
@@ -80,7 +80,7 @@ bitflags! {
     }
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct VirtIOVirtqueueDesc {
     pub addr: Volatile<u64>,
@@ -97,7 +97,7 @@ bitflags! {
     }
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct VirtIOVirtqueueAvailableRing {
     pub flags: Volatile<u16>,
@@ -106,14 +106,14 @@ pub struct VirtIOVirtqueueAvailableRing {
     used_event: Volatile<u16>
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct VirtIOVirtqueueUsedElem {
     id: Volatile<u32>,
     len: Volatile<u32>
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct VirtIOVirtqueueUsedRing {
     pub flags: Volatile<u16>,

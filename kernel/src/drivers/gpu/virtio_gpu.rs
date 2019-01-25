@@ -30,7 +30,7 @@ struct VirtIOGpu {
     rect: VirtIOGpuRect
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuConfig {
     events_read: ReadOnly<u32>,
@@ -85,7 +85,7 @@ const VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID : u32 = 0x1202;
 
 const VIRTIO_GPU_FLAG_FENCE : u32 = 1 << 0;
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuCtrlHdr {
     hdr_type: u32,
@@ -107,7 +107,7 @@ impl VirtIOGpuCtrlHdr {
     }
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, Default)]
 struct VirtIOGpuRect {
     x: u32,
@@ -116,7 +116,7 @@ struct VirtIOGpuRect {
     height: u32
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuRespDisplayInfo {
     header: VirtIOGpuCtrlHdr,
@@ -127,7 +127,7 @@ struct VirtIOGpuRespDisplayInfo {
 
 const VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM: u32 = 1;
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuResourceCreate2D {
     header: VirtIOGpuCtrlHdr,
@@ -137,7 +137,7 @@ struct VirtIOGpuResourceCreate2D {
     height: u32
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuResourceAttachBacking {
     header: VirtIOGpuCtrlHdr,
@@ -148,7 +148,7 @@ struct VirtIOGpuResourceAttachBacking {
     padding: u32
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuSetScanout {
     header: VirtIOGpuCtrlHdr,
@@ -157,7 +157,7 @@ struct VirtIOGpuSetScanout {
     resource_id: u32
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuTransferToHost2D {
     header: VirtIOGpuCtrlHdr,
@@ -167,7 +167,7 @@ struct VirtIOGpuTransferToHost2D {
     padding: u32
 }
 
-#[repr(packed)]
+#[repr(C)]
 #[derive(Debug)]
 struct VirtIOGpuResourceFlush {
     header: VirtIOGpuCtrlHdr,
