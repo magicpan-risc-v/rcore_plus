@@ -101,7 +101,7 @@ clean:
 	@cd $(user_dir) && make clean
 
 doc:
-	@cargo doc --verbose --all --document-private-items --open
+	RUSTDOCFLAGS='--no-defaults -Z unstable-options --enable-index-page' cargo doc --verbose --all --open
 
 run: build justrun
 runnet: build justrunnet
