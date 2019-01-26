@@ -1,6 +1,6 @@
 use alloc::collections::VecDeque;
 use super::*;
-use crate::thread;
+use rcore_process::thread;
 
 #[derive(Default)]
 pub struct Condvar {

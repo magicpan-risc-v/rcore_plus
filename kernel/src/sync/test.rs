@@ -6,8 +6,8 @@ use alloc::{sync::Arc, vec::Vec};
 use core::time::Duration;
 use crate::sync::Condvar;
 use crate::sync::ThreadLock as Mutex;
-use crate::thread;
 use alloc::vec;
+use rcore_process::thread;
 
 const EAT_TIME_MS: u64 = 200;
 const THINK_TIME_MS: u64 = 300;

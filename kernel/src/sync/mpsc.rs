@@ -88,7 +88,7 @@ pub mod test {
 
     use alloc::boxed::Box;
     use super::*;
-    use crate::thread;
+    use rcore_process::thread;
 
     fn smoke() {
         let (tx, rx) = channel::<i32>();

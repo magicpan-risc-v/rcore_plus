@@ -8,7 +8,6 @@ use log::*;
 use bitflags::bitflags;
 use crate::arch::interrupt::TrapFrame;
 use crate::process::*;
-use crate::thread;
 use crate::util;
 
 /// System call dispatcher
