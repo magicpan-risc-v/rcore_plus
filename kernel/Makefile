@@ -101,7 +101,7 @@ clean:
 	@cd $(user_dir) && make clean
 
 doc:
-	@cargo rustdoc --verbose -- --document-private-items
+	@cargo doc --verbose --all --document-private-items --open
 
 run: build justrun
 runnet: build justrunnet
