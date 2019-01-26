@@ -109,28 +109,28 @@ fn philosopher(table: Arc<Table>) {
     for h in handles {
         h.join().expect("handle should not be none");
     }
-    println!("philosophers dining passed");
+    //println!("philosophers dining passed");
 }
 
 pub extern fn philosopher_using_mutex(_arg: usize) -> ! {
-    println!("philosophers using mutex");
+    println!("dining philosophers using mutex begin");
 
     let table = Arc::new(MutexTable {
         forks: vec![Mutex::new(()), Mutex::new(()), Mutex::new(()), Mutex::new(()), Mutex::new(())]
     });
     philosopher(table);
-
+    println!("dining philosophers using mutex passed");
     loop { thread::yield_now(); }
 }
 
 pub extern fn philosopher_using_monitor(_arg: usize) -> ! {
-    println!("philosophers using monitor");
+    println!("dining philosophers using monitor begin");
 
     let table = Arc::new(MonitorTable {
         fork_status: Mutex::new(vec![false; 5]),
         fork_condvar: vec![Condvar::new(), Condvar::new(), Condvar::new(), Condvar::new(), Condvar::new()],
     });
     philosopher(table);
-
+    println!("dining philosophers using monitor passed");
     loop { thread::yield_now(); }
 }
