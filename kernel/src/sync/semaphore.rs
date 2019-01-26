@@ -6,6 +6,31 @@ use super::Condvar;
 use super::SpinNoIrqLock as Mutex;
 
 /// A counting, blocking, semaphore.
+/// Semaphores are a form of atomic counter where access is only granted if the
+/// counter is a positive value. Each acquisition will block the calling thread
+/// until the counter is positive, and each release will increment the counter
+/// and unblock any threads if necessary.
+///
+/// # Examples
+///
+/// ```
+/// use crate::sync::semaphore::Semaphore;
+///
+/// // Create a semaphore that represents 5 resources
+/// let sem = Semaphore::new(5);
+///
+/// // Acquire one of the resources
+/// sem.acquire();
+///
+/// // Acquire one of the resources for a limited period of time
+/// {
+///     let _guard = sem.access();
+///     // ...
+/// } // resources is released here
+///
+/// // Release our initially acquired resource
+/// sem.release();
+/// ```
 pub struct Semaphore {
     lock: Mutex<isize>,
     cvar: Condvar,
