@@ -3,7 +3,7 @@
 use simple_filesystem::{INode, file::File, FileInfo, FileType, FsError};
 use core::{slice, str};
 use alloc::{sync::Arc, vec::Vec, string::String};
-use spin::Mutex;
+use crate::sync::SpinNoIrqLock as Mutex;
 use log::*;
 use bitflags::bitflags;
 use crate::arch::interrupt::TrapFrame;

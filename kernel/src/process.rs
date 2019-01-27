@@ -69,7 +69,7 @@ pub mod context {
 
     use log::*;
     use simple_filesystem::file::File;
-    use spin::Mutex;
+    use crate::sync::SpinNoIrqLock as Mutex;
     use rcore_process::Context;
     use xmas_elf::{ElfFile, header, program::{Flags, Type}};
 
