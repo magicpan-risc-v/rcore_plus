@@ -32,8 +32,6 @@
 #           | off
 #
 #   board   = none                  Running on QEMU
-#
-#   m_mode                          Only available on riscv32, build for M-Mode, without MMU
 
 arch ?= riscv32
 board ?= none
@@ -41,7 +39,6 @@ mode ?= debug
 LOG  ?= debug
 graphic ?= off
 smp  ?= 4
-m_mode ?=
 
 target := $(arch)
 kernel := target/$(target)/$(mode)/rcore
@@ -54,8 +51,6 @@ export ARCH = $(arch)
 export SMP = $(smp)
 export SFSIMG = $(user_dir)/img/ucore-$(arch).img
 # crate 'process' use this to set interrupt (MIE or SIE)
-export M_MODE = $(m_mode)
-
 
 ### qemu options ###
 qemu_opts := \
@@ -139,7 +134,6 @@ $(bin): kernel
 	@mkdir -p target/$(target)/bbl && \
 	cd target/$(target)/bbl && \
 	$(bbl_path)/configure \
-		$(bbl_m_mode) \
 		--with-arch=rv32imac \
 		--disable-fp-emulation \
 		--host=riscv64-unknown-elf \
