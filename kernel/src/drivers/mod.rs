@@ -2,6 +2,7 @@ mod device_tree;
 pub mod bus;
 pub mod net;
 mod gpu;
+mod input;
 
 use lazy_static::lazy_static;
 use alloc::prelude::*;
@@ -11,7 +12,8 @@ use core::any::Any;
 
 pub enum DeviceType {
     Net,
-    Gpu
+    Gpu,
+    Input
 }
 
 pub trait Driver : Send {

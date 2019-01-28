@@ -51,7 +51,7 @@ impl Driver for VirtIONetDriver {
         // ensure header page is mapped
         active_table().map_if_not_exists(driver.header as usize, driver.header as usize);
 
-        let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
+        let header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
             header.interrupt_ack.write(interrupt);
@@ -153,7 +153,7 @@ impl<'a> phy::Device<'a> for VirtIONetDriver {
 }
 
 impl phy::RxToken for VirtIONetRxToken { 
-    fn consume<R, F>(self, timestamp: Instant, f: F) -> Result<R>
+    fn consume<R, F>(self, _timestamp: Instant, f: F) -> Result<R>
         where F: FnOnce(&[u8]) -> Result<R>
     {
         let buffer = {
@@ -198,7 +198,6 @@ impl phy::TxToken for VirtIONetTxToken {
         let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
         let payload_target = unsafe { slice::from_raw_parts_mut((driver.queue_page[VIRTIO_QUEUE_TRANSMIT] + size_of::<VirtIONetHeader>()) as *mut u8, len)};
         let result = f(payload_target);
-        let mut net_header = unsafe { &mut *(driver.queue_page[VIRTIO_QUEUE_TRANSMIT] as *mut VirtIONetHeader) };
 
         let mut header = unsafe { &mut *(driver.header as *mut VirtIOHeader) };
         let mut ring = unsafe { 

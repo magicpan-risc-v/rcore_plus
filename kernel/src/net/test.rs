@@ -60,7 +60,7 @@ pub extern fn server(_arg: usize) -> ! {
                 }
 
                 let client = match socket.recv() {
-                    Ok((data, endpoint)) => {
+                    Ok((_, endpoint)) => {
                         Some(endpoint)
                     }
                     Err(_) => None

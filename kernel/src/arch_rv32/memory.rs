@@ -8,6 +8,7 @@ use crate::memory::{FRAME_ALLOCATOR, init_heap, Linear, MemoryAttr, MemorySet};
 
 use super::consts::{KERN_VA_BASE, MEMORY_END, MEMORY_OFFSET};
 use super::riscv::{addr::*, register::sstatus};
+pub use super::riscv::asm::{mb, rmb, wmb};
 
 /// Initialize the memory management module.
 pub fn init(dtb: usize) {
