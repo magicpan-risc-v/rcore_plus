@@ -26,3 +26,8 @@ pub fn sfence_vma_all() {
 pub fn sfence_vma(asid: usize, addr: VirtAddr) {
     unsafe{ asm!("sfence.vma $0, $1" :: "r"(asid), "r"(addr.as_usize()) :: "volatile"); }
 }
+
+/// Memory Fence Instructions
+instruction!(mb, "fence iorw, iorw");
+instruction!(rmb, "fence ir, ir");
+instruction!(wmb, "fence ow, ow");
