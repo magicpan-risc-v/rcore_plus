@@ -93,12 +93,10 @@ impl VirtIOVirtqueue {
         header.queue_pfn.write((address as u32) >> 12);
 
         // link desc together
-        let mut desc = unsafe { slice::from_raw_parts_mut(address as *mut VirtIOVirtqueueDesc, queue_num) };
+        let desc = unsafe { slice::from_raw_parts_mut(address as *mut VirtIOVirtqueueDesc, queue_num) };
         for i in 0..(queue_num - 1) {
             desc[i].next.write((i + 1) as u16);
         }
-        let avail = unsafe { slice::from_raw_parts_mut((address + size_of::<VirtIOVirtqueueDesc>() * queue_num) as *mut VirtIOVirtqueueAvailableRing, queue_num) };
-        let used = unsafe { slice::from_raw_parts_mut((address + virtqueue_used_elem_offset(queue_num, align)) as *mut VirtIOVirtqueueUsedRing, queue_num) };
 
         VirtIOVirtqueue {
             header: header as *mut VirtIOHeader as usize,
@@ -116,14 +114,19 @@ impl VirtIOVirtqueue {
         }
     }
 
+    pub fn can_add(&self, input_len: usize, output_len: usize) -> bool {
+        return input_len + output_len + self.num_used <= self.queue_num;
+    }
+
     // Add buffers to the virtqueue
     // Return true on success, false otherwise
     // ref. linux virtio_ring.c virtqueue_add
     pub fn add(&mut self, input: &[&[u8]], output: &[&[u8]], user_data: usize) -> bool {
         assert!(input.len() + output.len() > 0);
-        if input.len() + output.len() + self.num_used > self.queue_num {
+        if !self.can_add(input.len(), output.len()) {
             return false;
         }
+
         let desc = unsafe { slice::from_raw_parts_mut(self.desc as *mut VirtIOVirtqueueDesc, self.queue_num) };
         let head = self.free_head;
         let mut prev = 0;
@@ -172,9 +175,14 @@ impl VirtIOVirtqueue {
         return res;
     }
 
-    // Get device used buffers (input, output, user_data)
+    pub fn can_get(&self) -> bool {
+        let used = unsafe { &mut *(self.used as *mut VirtIOVirtqueueUsedRing) };
+        return self.last_used_idx != used.idx.read();
+    }
+
+    // Get device used buffers (input, output, length, user_data)
     // ref. linux virtio_ring.c virtqueue_get_buf_ctx
-    pub fn get(&mut self) -> Option<(Vec<&'static [u8]>,Vec<&'static [u8]>,usize)> {
+    pub fn get(&mut self) -> Option<(Vec<&'static [u8]>, Vec<&'static [u8]>, usize, usize)> {
         let used = unsafe { &mut *(self.used as *mut VirtIOVirtqueueUsedRing) };
         if self.last_used_idx == used.idx.read() {
             return None
@@ -217,11 +225,12 @@ impl VirtIOVirtqueue {
         self.free_head = index;
         self.last_used_idx += 1;
 
-        Some((input, output, user_data))
+        Some((input, output, len as usize, user_data))
     }
 
     // Get device used buffers until succeed
-    pub fn get_block(&mut self) -> (Vec<&'static [u8]>,Vec<&'static [u8]>,usize) {
+    // See get() above
+    pub fn get_block(&mut self) -> (Vec<&'static [u8]>, Vec<&'static [u8]>, usize, usize) {
         loop {
             let res = self.get();
             if res.is_some() {
@@ -232,7 +241,7 @@ impl VirtIOVirtqueue {
 
     // Notify device about new buffers
     pub fn notify(&mut self) {
-        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        let header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
         header.queue_notify.write(self.queue as u32);
     }
 }

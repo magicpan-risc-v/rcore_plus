@@ -2,7 +2,7 @@ use device_tree::Node;
 use device_tree::util::SliceRead;
 use super::super::bus::virtio_mmio::*;
 use rcore_memory::PAGE_SIZE;
-use volatile::{Volatile, ReadOnly, WriteOnly};
+use volatile::Volatile;
 use core::mem::size_of;
 use super::super::{DRIVERS, Driver, DeviceType};
 use log::*;
@@ -11,8 +11,6 @@ use crate::arch::cpu;
 use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
 use core::slice;
-use alloc::sync::Arc;
-use crate::sync::SpinNoIrqLock as Mutex;
 use alloc::vec;
 use core::mem::transmute_copy;
 use core::fmt;
@@ -129,13 +127,13 @@ impl Driver for VirtIOInput {
 
         // ensure header page is mapped
         active_table().map_if_not_exists(self.header as usize, self.header as usize);
-        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        let header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
             header.interrupt_ack.write(interrupt);
             debug!("Got interrupt {:?}", interrupt);
             loop {
-                if let Some((input, output, _)) = self.queues[VIRTIO_QUEUE_EVENT].get() {
+                if let Some((input, output, _,  _)) = self.queues[VIRTIO_QUEUE_EVENT].get() {
                     let event: VirtIOInputEvent = unsafe { transmute_copy(&input[0][0]) };
                     if event.event_type == 2 && event.code == 0 {
                         // X
@@ -164,7 +162,7 @@ impl Driver for VirtIOInput {
 pub fn virtio_input_init(node: &Node) {
     let reg = node.prop_raw("reg").unwrap();
     let from = reg.as_slice().read_be_u64(0).unwrap();
-    let mut header = unsafe { &mut *(from as *mut VirtIOHeader) };
+    let header = unsafe { &mut *(from as *mut VirtIOHeader) };
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
@@ -178,7 +176,7 @@ pub fn virtio_input_init(node: &Node) {
     header.write_driver_features(driver_features);
 
     // read configuration space
-    let mut config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIOInputConfig) };
+    let config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIOInputConfig) };
     info!("Config: {:?}", config);
 
     // virtio 4.2.4 Legacy interface

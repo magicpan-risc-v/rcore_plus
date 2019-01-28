@@ -190,7 +190,7 @@ impl Driver for VirtIOGpu {
         // ensure header page is mapped
         active_table().map_if_not_exists(self.header as usize, self.header as usize);
 
-        let mut header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
+        let header = unsafe { &mut *(self.header as *mut VirtIOHeader) };
         let interrupt = header.interrupt_status.read();
         if interrupt != 0 {
             header.interrupt_ack.write(interrupt);
@@ -213,7 +213,7 @@ fn request(driver: &mut VirtIOGpu) {
 
 fn setup_framebuffer(driver: &mut VirtIOGpu) {
     // get display info
-    let mut request_get_display_info = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuCtrlHdr) };
+    let request_get_display_info = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuCtrlHdr) };
     *request_get_display_info = VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_GET_DISPLAY_INFO);
     request(driver);
     driver.queues[VIRTIO_QUEUE_TRANSMIT].get_block();
@@ -222,7 +222,7 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
     driver.rect = response_get_display_info.rect;
 
     // create resource 2d
-    let mut request_resource_create_2d = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceCreate2D) };
+    let request_resource_create_2d = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceCreate2D) };
     *request_resource_create_2d = VirtIOGpuResourceCreate2D {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_RESOURCE_CREATE_2D),
         resource_id: VIRTIO_GPU_RESOURCE_ID,
@@ -242,7 +242,7 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
     } as usize;
     mandelbrot(driver.rect.width, driver.rect.height, frame_buffer as *mut u32);
     driver.frame_buffer = frame_buffer;
-    let mut request_resource_attach_backing = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceAttachBacking) };
+    let request_resource_attach_backing = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceAttachBacking) };
     *request_resource_attach_backing = VirtIOGpuResourceAttachBacking {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING),
         resource_id: VIRTIO_GPU_RESOURCE_ID,
@@ -257,7 +257,7 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
     info!("response: {:?}", response_resource_attach_backing);
 
     // map frame buffer to screen
-    let mut request_set_scanout = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuSetScanout) };
+    let request_set_scanout = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuSetScanout) };
     *request_set_scanout = VirtIOGpuSetScanout {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_SET_SCANOUT),
         rect: response_get_display_info.rect,
@@ -274,7 +274,7 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
 
 fn flush_frame_buffer_to_screen(driver: &mut VirtIOGpu) {
     // copy data from guest to host
-    let mut request_transfer_to_host_2d = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuTransferToHost2D) };
+    let request_transfer_to_host_2d = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuTransferToHost2D) };
     *request_transfer_to_host_2d = VirtIOGpuTransferToHost2D {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D),
         rect: driver.rect,
@@ -288,7 +288,7 @@ fn flush_frame_buffer_to_screen(driver: &mut VirtIOGpu) {
     info!("response: {:?}", response_transfer_to_host_2d);
 
     // flush data to screen
-    let mut request_resource_flush = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceFlush) };
+    let request_resource_flush = unsafe { &mut *(driver.queue_buffer[VIRTIO_BUFFER_TRANSMIT] as *mut VirtIOGpuResourceFlush) };
     *request_resource_flush = VirtIOGpuResourceFlush {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_RESOURCE_FLUSH),
         rect: driver.rect,
@@ -304,7 +304,7 @@ fn flush_frame_buffer_to_screen(driver: &mut VirtIOGpu) {
 pub fn virtio_gpu_init(node: &Node) {
     let reg = node.prop_raw("reg").unwrap();
     let from = reg.as_slice().read_be_u64(0).unwrap();
-    let mut header = unsafe { &mut *(from as *mut VirtIOHeader) };
+    let header = unsafe { &mut *(from as *mut VirtIOHeader) };
 
     header.status.write(VirtIODeviceStatus::DRIVER.bits());
 
@@ -318,7 +318,7 @@ pub fn virtio_gpu_init(node: &Node) {
     header.write_driver_features(driver_features);
 
     // read configuration space
-    let mut config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIOGpuConfig) };
+    let config = unsafe { &mut *((from + VIRTIO_CONFIG_SPACE_OFFSET) as *mut VirtIOGpuConfig) };
     info!("Config: {:?}", config);
 
     // virtio 4.2.4 Legacy interface

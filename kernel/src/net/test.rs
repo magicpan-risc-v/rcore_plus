@@ -17,7 +17,7 @@ pub extern fn server(_arg: usize) -> ! {
         }
     }
 
-    let mut driver = {
+    let driver = {
         let ref_driver = &mut *NET_DRIVERS.lock()[0];
         ref_driver.as_any().downcast_ref::<VirtIONetDriver>().unwrap().clone()
     };
