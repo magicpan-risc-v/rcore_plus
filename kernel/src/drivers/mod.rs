@@ -1,6 +1,7 @@
 mod device_tree;
 pub mod bus;
 pub mod net;
+pub mod block;
 mod gpu;
 mod input;
 
@@ -13,7 +14,8 @@ use core::any::Any;
 pub enum DeviceType {
     Net,
     Gpu,
-    Input
+    Input,
+    Block
 }
 
 pub trait Driver : Send {

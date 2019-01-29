@@ -56,7 +56,9 @@ export SFSIMG = $(user_dir)/img/ucore-$(arch).img
 qemu_opts := \
 	-smp cores=$(smp) \
 	-machine virt \
-	-kernel $(bin)
+	-kernel $(bin) \
+	-drive file=$(SFSIMG),format=raw,id=sfs \
+	-device virtio-blk-device,drive=sfs
 
 ifdef d
 qemu_opts += -d $(d)
@@ -113,6 +115,7 @@ justrunnet: build
 justrunui: build
 	@qemu-system-$(arch) $(qemu_opts) \
 		-device virtio-gpu-device \
+		-device virtio-mouse-device
 
 debug: $(kernel) $(bin)
 	@qemu-system-$(arch) $(qemu_opts) -s -S &

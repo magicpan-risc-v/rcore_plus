@@ -19,6 +19,10 @@ pub fn init() {
         }
     }
 
+    info!("process init end");
+}
+
+pub fn launch() {
     // Add idle threads
     extern fn idle(_arg: usize) -> ! {
         loop { cpu::halt(); }
@@ -26,15 +30,13 @@ pub fn init() {
     use core::str::FromStr;
     let cores = usize::from_str(env!("SMP")).unwrap();
     for i in 0..cores {
-        manager.add(Process::new_kernel(idle, i), 0);
+        processor().manager().add(Process::new_kernel(idle, i), 0);
     }
     crate::shell::run_user_shell();
 
-    processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_mutex, 0), 0);
-    processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_monitor, 0), 0);
+    //processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_mutex, 0), 0);
+    //processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_monitor, 0), 0);
     processor().manager().add(Process::new_kernel(crate::net::server, 0), 0);
-
-    info!("process init end");
 }
 
 static PROCESSORS: [Processor; MAX_CPU_NUM] = [Processor::new(), Processor::new(), Processor::new(), Processor::new(), Processor::new(), Processor::new(), Processor::new(), Processor::new()];

@@ -1,6 +1,7 @@
 use super::super::net::virtio_net;
 use super::super::gpu::virtio_gpu;
 use super::super::input::virtio_input;
+use super::super::block::virtio_blk;
 use volatile::{Volatile, ReadOnly, WriteOnly};
 use log::*;
 use device_tree::Node;
@@ -349,6 +350,8 @@ pub fn virtio_probe(node: &Node) {
             header.status.write(VirtIODeviceStatus::ACKNOWLEDGE.bits());
             if device_id == 1 { // net device
                 virtio_net::virtio_net_init(node);
+            } else if device_id == 2 { // blk device
+                virtio_blk::virtio_blk_init(node);
             } else if device_id == 16 { // gpu device
                 virtio_gpu::virtio_gpu_init(node);
             } else if device_id == 18 { // input device

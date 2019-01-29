@@ -4,6 +4,8 @@ use core::any::Any;
 use lazy_static::lazy_static;
 use crate::sync::Condvar;
 use crate::sync::SpinNoIrqLock as Mutex;
+use crate::drivers::{self, AsAny};
+use crate::drivers::block::virtio_blk::VirtIOBlk;
 
 // Hard link user program
 global_asm!(r#"
@@ -16,19 +18,28 @@ _user_img_start:
 _user_img_end:
 "#);
 
+// dirty hack, dunno how to do it elegantly
+pub static mut ROOT_INODE_BLK: Option<Arc<INode>> = None;
+
 lazy_static! {
     pub static ref ROOT_INODE: Arc<INode> = {
-        let device = {
-            extern {
-                fn _user_img_start();
-                fn _user_img_end();
-            }
-            // Hard link user program
-            Box::new(unsafe { MemBuf::new(_user_img_start, _user_img_end) })
-        };
+        unsafe {
+            if let Some(inode) = ROOT_INODE_BLK.take() {
+                inode
+            } else {
+                let device = {
+                    extern {
+                        fn _user_img_start();
+                        fn _user_img_end();
+                    }
+                    // Hard link user program
+                    Box::new(unsafe { MemBuf::new(_user_img_start, _user_img_end) })
+                };
 
-        let sfs = SimpleFileSystem::open(device).expect("failed to open SFS");
-        sfs.root_inode()
+                let sfs = SimpleFileSystem::open(device).expect("failed to open SFS");
+                sfs.root_inode()
+            }
+        }
     };
 }
 
