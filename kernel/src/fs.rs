@@ -1,13 +1,14 @@
 use simple_filesystem::*;
 use alloc::{boxed::Box, sync::Arc, string::String, collections::VecDeque, vec::Vec};
 use core::any::Any;
+use core::ops::Deref;
 use lazy_static::lazy_static;
 use crate::sync::Condvar;
 use crate::sync::SpinNoIrqLock as Mutex;
 use crate::drivers::{self, AsAny};
-use crate::drivers::block::virtio_blk::VirtIOBlk;
+use crate::drivers::block::virtio_blk::VirtIOBlkDriver;
 
-// Hard link user program
+#[cfg(feature = "link_user")]
 global_asm!(r#"
     .section .rodata
     .align 12
@@ -18,28 +19,26 @@ _user_img_start:
 _user_img_end:
 "#);
 
-// dirty hack, dunno how to do it elegantly
-pub static mut ROOT_INODE_BLK: Option<Arc<INode>> = None;
-
 lazy_static! {
     pub static ref ROOT_INODE: Arc<INode> = {
-        unsafe {
-            if let Some(inode) = ROOT_INODE_BLK.take() {
-                inode
-            } else {
-                let device = {
-                    extern {
-                        fn _user_img_start();
-                        fn _user_img_end();
-                    }
-                    // Hard link user program
-                    Box::new(unsafe { MemBuf::new(_user_img_start, _user_img_end) })
-                };
+        #[cfg(not(feature = "link_user"))]
+        let device = Box::new(drivers::DRIVERS.lock().iter()
+            .map(|device| device.deref().as_any().downcast_ref::<VirtIOBlkDriver>())
+            .find(|maybe_blk| maybe_blk.is_some())
+            .expect("VirtIOBlk not found")
+            .unwrap().clone());
 
-                let sfs = SimpleFileSystem::open(device).expect("failed to open SFS");
-                sfs.root_inode()
+        #[cfg(feature = "link_user")]
+        let device = {
+            extern {
+                fn _user_img_start();
+                fn _user_img_end();
             }
-        }
+            Box::new(unsafe { MemBuf::new(_user_img_start, _user_img_end) })
+        };
+
+        let sfs = SimpleFileSystem::open(device).expect("failed to open SFS");
+        sfs.root_inode()
     };
 }
 

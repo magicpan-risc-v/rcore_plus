@@ -15,6 +15,7 @@ authors = [
 ]
 
 [features]
+link_user = []
 
 [profile.dev]
 # MUST >= 1 : Enable RVO to avoid stack overflow

@@ -1,24 +1,26 @@
+use alloc::prelude::*;
+use alloc::sync::Arc;
+use alloc::vec;
+use core::cmp::min;
+use core::fmt;
+use core::mem::{size_of, zeroed};
+use core::slice;
+
 use device_tree::Node;
 use device_tree::util::SliceRead;
-use super::super::bus::virtio_mmio::*;
-use rcore_memory::PAGE_SIZE;
-use volatile::Volatile;
-use core::mem::size_of;
-use super::super::{DRIVERS, Driver, DeviceType};
 use log::*;
-use alloc::prelude::*;
+use rcore_memory::PAGE_SIZE;
+use rcore_memory::paging::PageTable;
+use volatile::Volatile;
+
+use simple_filesystem::BlockedDevice;
+
 use crate::arch::cpu;
 use crate::memory::active_table;
-use rcore_memory::paging::PageTable;
-use core::slice;
-use alloc::vec;
-use core::mem::zeroed;
-use core::fmt;
-use simple_filesystem::{BlockedDevice, SimpleFileSystem, FileSystem};
-use core::cmp::min;
-use crate::fs::ROOT_INODE_BLK;
-use alloc::sync::Arc;
 use crate::sync::SpinNoIrqLock as Mutex;
+
+use super::super::{DeviceType, Driver, DRIVERS};
+use super::super::bus::virtio_mmio::*;
 
 pub struct VirtIOBlk {
     interrupt_parent: u32,
@@ -176,14 +178,6 @@ pub fn virtio_blk_init(node: &Node) {
     })));
 
     header.status.write(VirtIODeviceStatus::DRIVER_OK.bits());
-
-    let sfs = SimpleFileSystem::open(Box::new(driver.clone())).expect("failed to open SFS");
-    let root_inode = sfs.root_inode();
-
-    // dirty hack, dunno how to do it elegantly
-    unsafe {
-        ROOT_INODE_BLK = Some(root_inode);
-    }
 
     DRIVERS.lock().push(Box::new(driver));
 }
