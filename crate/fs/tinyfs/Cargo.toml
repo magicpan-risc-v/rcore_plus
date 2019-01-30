@@ -1,0 +1,11 @@
+[package]
+name = "tinyfs"
+version = "0.1.0"
+authors = ["Yu Chen"]
+# Derived from https://github.com/SergioBenitez/RustFS.git
+[dev-dependencies]
+time = "0.1"
+rand = "0.3"
+
+[build-dependencies]
+cc = "1.0"
