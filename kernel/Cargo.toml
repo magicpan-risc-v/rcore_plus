@@ -40,7 +40,7 @@ bit-allocator = { path = "../crate/bit-allocator" }
 rcore-memory = { path = "../crate/memory" }
 rcore-process = { path = "../crate/process" }
 simple-filesystem = { path = "../crate/fs/sfs" }
-
+tinyfs = { path = "../crate/fs/tinyfs" }
 #[target.'cfg(any(target_arch = "riscv32"))'.dependencies]
 #riscv = { git = "https://github.com/riscv-and-rust-and-decaf/riscv" }
 #bbl = { path = "../crate/bbl" }

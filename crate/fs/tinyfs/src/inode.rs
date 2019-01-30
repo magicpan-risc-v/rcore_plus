@@ -48,7 +48,7 @@ impl Inode {
     }
   }
 
-  fn get_or_alloc_page<'a>(&'a mut self, num: usize) -> &'a mut Page {
+  fn get_or_alloc_page(&mut self, num: usize) -> &mut Page {
     if num >= LIST_SIZE + LIST_SIZE * LIST_SIZE {
       panic!("Maximum file size exceeded!")
     };
@@ -81,7 +81,7 @@ impl Inode {
     page.as_mut().unwrap()
   }
 
-  fn get_page<'a>(&'a self, num: usize) -> &'a Option<Page> {
+  fn get_page(&self, num: usize) -> &Option<Page> {
     if num >= LIST_SIZE + LIST_SIZE * LIST_SIZE {
       panic!("Page does not exist.")
     };

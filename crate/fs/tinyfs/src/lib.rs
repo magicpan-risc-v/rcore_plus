@@ -10,11 +10,11 @@ extern crate time;
 extern crate rand;
 
 mod directory;
-mod file;
-mod inode;
+pub mod file;
+pub mod inode;
 
-use file::{File, FileHandle};
-use file::File::{EmptyFile, DataFile, Directory};
+pub use file::{File, FileHandle};
+pub use file::File::{EmptyFile, DataFile, Directory};
 use alloc::rc::Rc;
 use core::cell::{RefCell};
 use alloc::collections::BTreeMap;

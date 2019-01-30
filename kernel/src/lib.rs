@@ -16,9 +16,13 @@ extern crate alloc;
 
 extern crate bare_metal;
 
+extern crate tinyfs;
+
 pub use crate::process::{processor, new_kernel_context};
 use rcore_process::thread;
 use linked_list_allocator::LockedHeap;
+//pub use tinyfs::*;
+//pub use tinyfs::{file::*,directory::*, inode::*};
 
 #[macro_use]    // print!
 mod logging;

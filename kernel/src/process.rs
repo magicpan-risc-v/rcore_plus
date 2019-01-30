@@ -6,6 +6,8 @@ use crate::consts::{MAX_CPU_NUM, MAX_PROCESS_NUM};
 use crate::arch::cpu;
 use alloc::{boxed::Box, sync::Arc};
 use log::*;
+pub use tinyfs::FileDescriptor;
+pub use tinyfs::file::{File, FileHandle};
 
 /// init process subsystem
 pub fn init() {
@@ -46,7 +48,7 @@ static PROCESSORS: [Processor; MAX_CPU_NUM] = [Processor::new(), Processor::new(
 /// FIXME: It's obviously unsafe to get &mut !
 pub fn process() -> &'static mut Process {
     use core::mem::transmute;
-    let (process, _): (&mut Process, *const ()) = unsafe {
+    let (process, _): (&'static mut Process, *const ()) = unsafe {
         transmute(processor().context())
     };
     process
@@ -68,9 +70,9 @@ pub fn new_kernel_context(entry: extern fn(usize) -> !, arg: usize) -> Box<Conte
 
 pub mod context {
     use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
-
     use log::*;
-    use simple_filesystem::file::File;
+    pub use tinyfs::FileDescriptor;
+    pub use tinyfs::file::{File, FileHandle};
     use crate::sync::SpinNoIrqLock as Mutex;
     use rcore_process::Context;
     use xmas_elf::{ElfFile, header, program::{Flags, Type}};
@@ -79,15 +81,17 @@ pub mod context {
     use crate::memory::{ByFrame, GlobalFrameAlloc, KernelStack, MemoryAttr, MemorySet};
 
     // TODO: avoid pub
-    pub struct Process {
+    pub struct Process<'r> {
         pub arch: ArchContext,
         pub memory_set: MemorySet,
         pub kstack: KernelStack,
-        pub files: BTreeMap<usize, Arc<Mutex<File>>>,
-        pub cwd: String,
+        pub cwd: File<'r>,
+        pub fd_table: BTreeMap<FileDescriptor, FileHandle<'r>>,
+        pub fds: Vec<FileDescriptor>,
+
     }
 
-    impl Context for Process {
+    impl<'r>  Context for Process<'r>  {
         unsafe fn switch_to(&mut self, target: &mut Context) {
             use core::mem::transmute;
             let (target, _): (&mut Process, *const ()) = transmute(target);
@@ -95,14 +99,15 @@ pub mod context {
         }
     }
 
-    impl Process {
+    impl<'r>  Process<'r>  {
         pub unsafe fn new_init() -> Box<Context> {
             Box::new(Process {
                 arch: ArchContext::null(),
                 memory_set: MemorySet::new(),
                 kstack: KernelStack::new(),
-                files: BTreeMap::default(),
-                cwd: String::new(),
+                cwd: File::new_dir(None),
+                fd_table: BTreeMap::new(),
+                fds: (0..(256 - 2)).map(|i| 256 - i).collect(),
             })
         }
 
@@ -113,62 +118,63 @@ pub mod context {
                 arch: unsafe { ArchContext::new_kernel_thread(entry, arg, kstack.top(), memory_set.token()) },
                 memory_set,
                 kstack,
-                files: BTreeMap::default(),
-                cwd: String::new(),
+                fd_table: BTreeMap::new(),
+                cwd: File::new_dir(None),
+                fds: (0..(256 - 2)).map(|i| 256 - i).collect(),
             })
         }
 
-        /// Make a new user thread from ELF data
-        pub fn new_user<'a, Iter>(data: &[u8], args: Iter) -> Box<Process>
-            where Iter: Iterator<Item=&'a str>
-        {
-            // Parse elf
-            let elf = ElfFile::new(data).expect("failed to read elf");
-            let is32 = match elf.header.pt2 {
-                header::HeaderPt2::Header32(_) => true,
-                header::HeaderPt2::Header64(_) => false,
-            };
-
-            match elf.header.pt2.type_().as_type() {
-                header::Type::Executable => {},
-                header::Type::SharedObject => {},
-                _ => panic!("ELF is not executable or shared object"),
-            }
-
-            // Make page table
-            let (mut memory_set, entry_addr) = memory_set_from(&elf);
-
-            // User stack
-            use crate::consts::{USER_STACK_OFFSET, USER_STACK_SIZE, USER32_STACK_OFFSET};
-
-            let mut ustack_top = {
-                let (ustack_buttom, ustack_top) = match is32 {
-                    true => (USER32_STACK_OFFSET, USER32_STACK_OFFSET + USER_STACK_SIZE),
-                    false => (USER_STACK_OFFSET, USER_STACK_OFFSET + USER_STACK_SIZE),
-                };
-                memory_set.push(ustack_buttom, ustack_top, ByFrame::new(MemoryAttr::default().user(), GlobalFrameAlloc), "user_stack");
-                ustack_top
-            };
-
-            unsafe {
-                memory_set.with(|| { ustack_top = push_args_at_stack(args, ustack_top) });
-            }
-
-            trace!("{:#x?}", memory_set);
-
-            let kstack = KernelStack::new();
-
-            Box::new(Process {
-                arch: unsafe {
-                    ArchContext::new_user_thread(
-                        entry_addr, ustack_top, kstack.top(), is32, memory_set.token())
-                },
-                memory_set,
-                kstack,
-                files: BTreeMap::default(),
-                cwd: String::new(),
-            })
-        }
+//        /// Make a new user thread from ELF data
+//        pub fn new_user<'a, Iter>(data: &[u8], args: Iter) -> Box<Process>
+//            where Iter: Iterator<Item=&'a str>
+//        {
+//            // Parse elf
+//            let elf = ElfFile::new(data).expect("failed to read elf");
+//            let is32 = match elf.header.pt2 {
+//                header::HeaderPt2::Header32(_) => true,
+//                header::HeaderPt2::Header64(_) => false,
+//            };
+//
+//            match elf.header.pt2.type_().as_type() {
+//                header::Type::Executable => {},
+//                header::Type::SharedObject => {},
+//                _ => panic!("ELF is not executable or shared object"),
+//            }
+//
+//            // Make page table
+//            let (mut memory_set, entry_addr) = memory_set_from(&elf);
+//
+//            // User stack
+//            use crate::consts::{USER_STACK_OFFSET, USER_STACK_SIZE, USER32_STACK_OFFSET};
+//
+//            let mut ustack_top = {
+//                let (ustack_buttom, ustack_top) = match is32 {
+//                    true => (USER32_STACK_OFFSET, USER32_STACK_OFFSET + USER_STACK_SIZE),
+//                    false => (USER_STACK_OFFSET, USER_STACK_OFFSET + USER_STACK_SIZE),
+//                };
+//                memory_set.push(ustack_buttom, ustack_top, ByFrame::new(MemoryAttr::default().user(), GlobalFrameAlloc), "user_stack");
+//                ustack_top
+//            };
+//
+//            unsafe {
+//                memory_set.with(|| { ustack_top = push_args_at_stack(args, ustack_top) });
+//            }
+//
+//            trace!("{:#x?}", memory_set);
+//
+//            let kstack = KernelStack::new();
+//
+//            Box::new(Process {
+//                arch: unsafe {
+//                    ArchContext::new_user_thread(
+//                        entry_addr, ustack_top, kstack.top(), is32, memory_set.token())
+//                },
+//                memory_set,
+//                kstack,
+//                files: BTreeMap::default(),
+//                cwd: String::new(),
+//            })
+//        }
 
         /// Fork
         pub fn fork(&self, tf: &TrapFrame) -> Box<Context> {
