@@ -116,8 +116,9 @@ fn timer() {
 /// param: TrapFrame: the Trapframe for the syscall
 fn syscall(tf: &mut TrapFrame) {
     tf.sepc += 4;   // Must before syscall, because of fork.
-    let ret = crate::syscall::syscall(tf.x[10], [tf.x[11], tf.x[12], tf.x[13], tf.x[14], tf.x[15], tf.x[16]], tf);
-    tf.x[10] = ret as usize;
+    //let ret = crate::syscall::syscall(tf.x[10], [tf.x[11], tf.x[12], tf.x[13], tf.x[14], tf.x[15], tf.x[16]], tf);
+    //tf.x[10] = ret as usize;
+    trace!("\nSYSCALL: no implemented");
 }
 
 /// process page fault exception

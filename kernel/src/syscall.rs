@@ -13,52 +13,53 @@ pub use tinyfs::*;
 pub use tinyfs::file::{File, FileHandle};
 pub use tinyfs::inode::Inode;
 pub use tinyfs::file::File::{EmptyFile, DataFile, Directory};
+pub use tinyfs::directory::DirectoryHandle;
 
 /// System call dispatcher
-pub fn syscall(id: usize, args: [usize; 6], tf: &mut TrapFrame) -> isize {
-    let ret = match id {
-        // file
-        100 => sys_open(args[0] as *const u8, args[1]),
-        101 => sys_close(args[0]),
-        102 => sys_read(args[0], args[1] as *mut u8, args[2]),
-        103 => sys_write(args[0], args[1] as *const u8, args[2]),
-        030 => sys_putc(args[0] as u8 as char),
-//        104 => sys_seek(),
-//        110 => sys_fstat(args[0], args[1] as *mut Stat),
-//        111 => sys_fsync(),
-//        121 => sys_getcwd(),
-//        128 => sys_getdirentry(args[0], args[1] as *mut DirEntry),
-//        130 => sys_dup(args[0], args[1]),
-
-        // process
-        001 => sys_exit(args[0] as isize),
-        002 => sys_fork(tf),
-        003 => sys_wait(args[0], args[1] as *mut i32),
-//        004 => sys_exec(args[0] as *const u8, args[1] as usize, args[2] as *const *const u8, tf),
-//        005 => sys_clone(),
-        010 => sys_yield(),
-        011 => sys_sleep(args[0]),
-        012 => sys_kill(args[0]),
-        017 => sys_get_time(),
-        018 => sys_getpid(),
-        255 => sys_lab6_set_priority(args[0]),
-
-        // memory
-//        020 => sys_mmap(),
-//        021 => sys_munmap(),
-//        022 => sys_shmem(),
-//        031 => sys_pgdir(),
-
-        _ => {
-            error!("unknown syscall id: {:#x?}, args: {:x?}", id, args);
-            crate::trap::error(tf);
-        }
-    };
-    match ret {
-        Ok(code) => code,
-        Err(err) => -(err as isize),
-    }
-}
+//pub fn syscall(id: usize, args: [usize; 6], tf: &mut TrapFrame) -> isize {
+//    let ret = match id {
+//        // file
+//        100 => sys_open(args[0] as *const u8 as &str, args[1]),
+//        101 => sys_close(args[0] as FileDescriptor),
+//        102 => sys_read(args[0], args[1] as *mut u8, args[2]),
+//        103 => sys_write(args[0], args[1] as *const u8, args[2]),
+//        030 => sys_putc(args[0] as u8 as char),
+////        104 => sys_seek(),
+////        110 => sys_fstat(args[0], args[1] as *mut Stat),
+////        111 => sys_fsync(),
+////        121 => sys_getcwd(),
+////        128 => sys_getdirentry(args[0], args[1] as *mut DirEntry),
+////        130 => sys_dup(args[0], args[1]),
+//
+//        // process
+//        001 => sys_exit(args[0] as isize),
+//        002 => sys_fork(tf),
+//        003 => sys_wait(args[0], args[1] as *mut i32),
+////        004 => sys_exec(args[0] as *const u8, args[1] as usize, args[2] as *const *const u8, tf),
+////        005 => sys_clone(),
+//        010 => sys_yield(),
+//        011 => sys_sleep(args[0]),
+//        012 => sys_kill(args[0]),
+//        017 => sys_get_time(),
+//        018 => sys_getpid(),
+//        255 => sys_lab6_set_priority(args[0]),
+//
+//        // memory
+////        020 => sys_mmap(),
+////        021 => sys_munmap(),
+////        022 => sys_shmem(),
+////        031 => sys_pgdir(),
+//
+//        _ => {
+//            error!("unknown syscall id: {:#x?}, args: {:x?}", id, args);
+//            crate::trap::error(tf);
+//        }
+//    };
+//    match ret {
+//        Ok(code) => code,
+//        Err(err) => -(err as isize),
+//    }
+//}
 
 //fn sys_read(fd: usize, base: *mut u8, len: usize) -> SysResult {
 //    // TODO: check ptr
@@ -110,7 +111,7 @@ pub fn sys_seek(fd: FileDescriptor, o: isize, whence: Whence) -> usize {
 //    Ok(fd as isize)
 //}
 
-pub fn sys_open(path: &str, flags: usize) -> FileDescriptor {
+pub fn sys_open(path: &'static str, flags: u32) -> FileDescriptor {
     let lookup = process().cwd.get(path);
     let file = match lookup {
         Some(f) => f,
@@ -129,13 +130,20 @@ pub fn sys_open(path: &str, flags: usize) -> FileDescriptor {
 
     match file {
         DataFile(_) => {
-            let fd = Proc::extract_fd(&process().fds.pop());
+            let fd = extract_fd(&process().fds.pop());
             let handle = FileHandle::new(file);
             process().fd_table.insert(fd, handle);
             fd
         }
         Directory(_) => -1,
         EmptyFile => -2,
+    }
+}
+
+fn extract_fd(fd_opt: &Option<FileDescriptor>) -> FileDescriptor {
+    match fd_opt {
+        &Some(fd) => fd,
+        &None => panic!("Error in FD allocation.")
     }
 }
 
@@ -152,7 +160,7 @@ pub fn sys_close(fd: FileDescriptor) {
     process().fds.push(fd);
 }
 
-pub fn sys_unlink(path:str) {
+pub fn sys_unlink(path: &'static str) {
     process().cwd.remove(path);
 }
 

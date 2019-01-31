@@ -46,7 +46,7 @@ static PROCESSORS: [Processor; MAX_CPU_NUM] = [Processor::new(), Processor::new(
 /// Get current thread struct
 ///
 /// FIXME: It's obviously unsafe to get &mut !
-pub fn process() -> &'static mut Process {
+pub fn process() -> &'static mut Process<'static> {
     use core::mem::transmute;
     let (process, _): (&'static mut Process, *const ()) = unsafe {
         transmute(processor().context())
@@ -200,8 +200,9 @@ pub mod context {
                 arch: unsafe { ArchContext::new_fork(tf, kstack.top(), memory_set.token()) },
                 memory_set,
                 kstack,
-                files: BTreeMap::default(),
-                cwd: String::new(),
+                cwd: File::new_dir(None),
+                fd_table: BTreeMap::new(),
+                fds: (0..(256 - 2)).map(|i| 256 - i).collect(),
             })
         }
     }

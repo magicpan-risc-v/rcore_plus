@@ -9,7 +9,7 @@ extern crate time;
 #[cfg(test)]
 extern crate rand;
 
-mod directory;
+pub mod directory;
 pub mod file;
 pub mod inode;
 
@@ -20,7 +20,7 @@ use core::cell::{RefCell};
 use alloc::collections::BTreeMap;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use directory::DirectoryHandle;
+pub use directory::DirectoryHandle;
 pub use file::Whence;
 pub use inode::Inode;
 
