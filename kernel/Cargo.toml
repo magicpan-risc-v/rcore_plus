@@ -25,6 +25,7 @@ opt-level = 1
 debug = true
 
 [dependencies]
+rand = {version="0.6", default-features = false}
 bare-metal = "0.2.0"
 log = "0.4"
 once = "0.3"

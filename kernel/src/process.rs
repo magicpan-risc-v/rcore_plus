@@ -8,6 +8,7 @@ use alloc::{boxed::Box, sync::Arc};
 use log::*;
 pub use tinyfs::FileDescriptor;
 pub use tinyfs::file::{File, FileHandle};
+use crate::test::tinyfs_all_test;
 
 /// init process subsystem
 pub fn init() {
@@ -38,6 +39,7 @@ pub fn launch() {
 
     //processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_mutex, 0), 0);
     //processor().manager().add(Process::new_kernel(crate::sync::test::philosopher_using_monitor, 0), 0);
+    processor().manager().add(Process::new_kernel(tinyfs_all_test, 0), 0);
     processor().manager().add(Process::new_kernel(crate::net::server, 0), 0);
 }
 

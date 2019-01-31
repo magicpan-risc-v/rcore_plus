@@ -1,6 +1,9 @@
 #![feature(alloc)]
 #![cfg_attr(not(test), no_std)]
 extern crate alloc;
+//extern crate rcore_process;
+//#[macro_use]    // print!
+//extern crate log;
 
 #[cfg(test)]
 extern crate core;
@@ -9,17 +12,21 @@ extern crate time;
 #[cfg(test)]
 extern crate rand;
 
+use alloc::rc::Rc;
+use core::cell::{RefCell};
+use alloc::collections::BTreeMap;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+//#[cfg(no_std)]
+//use rcore_process::thread;
+//use log::*;
+
 pub mod directory;
 pub mod file;
 pub mod inode;
 
 pub use file::{File, FileHandle};
 pub use file::File::{EmptyFile, DataFile, Directory};
-use alloc::rc::Rc;
-use core::cell::{RefCell};
-use alloc::collections::BTreeMap;
-use alloc::boxed::Box;
-use alloc::vec::Vec;
 pub use directory::DirectoryHandle;
 pub use file::Whence;
 pub use inode::Inode;
@@ -33,12 +40,21 @@ pub const O_NONBLOCK: u32 = (1 << 3);
 pub const O_APPEND: u32 =   (1 << 4);
 pub const O_CREAT: u32 =    (1 << 5);
 
+
+//pub extern fn tinyfs_all_test(_arg: usize) -> ! {
+//  //println!("tinyfs_all_test");
+//
+//  //loop { thread::yield_now(); }
+//}
+
+#[cfg(test)]
 pub struct Proc<'r> {
   cwd: File<'r>,
   fd_table: BTreeMap<FileDescriptor, FileHandle<'r>>,
   fds: Vec<FileDescriptor>
 }
 
+#[cfg(test)]
 impl<'r> Proc<'r> {
   pub fn new() -> Proc<'r> {
     Proc {

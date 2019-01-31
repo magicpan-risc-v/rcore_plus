@@ -37,6 +37,7 @@ mod shell;
 mod drivers;
 mod net;
 mod backtrace;
+mod test;
 
 #[path = "arch_rv32/mod.rs"]
 pub mod arch;

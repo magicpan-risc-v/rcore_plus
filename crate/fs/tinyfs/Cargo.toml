@@ -3,9 +3,17 @@ name = "tinyfs"
 version = "0.1.0"
 authors = ["Yu Chen"]
 # Derived from https://github.com/SergioBenitez/RustFS.git
+
+[profile.release]
+debug = true
+
+[dependencies]
+rand = {version="0.6", default-features = false}
+#rcore-process = { path = "../../process" }
+#log = "0.4"
 [dev-dependencies]
 time = "0.1"
-rand = "0.3"
+rand = "0.6"
 
 [build-dependencies]
 cc = "1.0"
