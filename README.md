@@ -38,7 +38,6 @@ git submodule update --init --recursive
 cd rcore_plus/riscv_pk
 git checkout lab8-rv32
 cd ../kernel
-rustup override set nightly-2019-01-01
 make run arch=riscv32
 ```
 
