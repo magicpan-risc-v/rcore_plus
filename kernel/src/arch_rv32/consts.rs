@@ -4,7 +4,7 @@
 // [0x80000000, 0x80800000]
 pub const RECURSIVE_INDEX: usize = 0x3fe;
 
-pub const KERN_VA_BASE: usize = 0;
+pub const KERN_VA_BASE: usize = 0x8000_0000;
 
 pub const KERNEL_P2_INDEX: usize = 0x8000_0000 >> 12 >> 10;
 

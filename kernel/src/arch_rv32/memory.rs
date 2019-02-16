@@ -41,7 +41,7 @@ fn init_frame_allocator() {
     use core::ops::Range;
 
     let mut ba = FRAME_ALLOCATOR.lock();
-    let range = to_range((end as usize) - KERN_VA_BASE + PAGE_SIZE, MEMORY_END);
+    let range = to_range((end as usize) - KERN_VA_BASE + MEMORY_OFFSET + PAGE_SIZE, MEMORY_END);
     ba.insert(range);
 
     /// transform the memory address to the page number
@@ -58,7 +58,7 @@ fn init_frame_allocator() {
 
 /// Remap the kernel memory address with 4K page recorded in p1 page table
 fn remap_the_kernel(dtb: usize) {
-    let offset = -(super::consts::KERN_VA_BASE as isize);
+    let offset = -(super::consts::KERN_VA_BASE as isize - super::consts::MEMORY_OFFSET as isize);
     let mut ms = MemorySet::new_bare();
     ms.push(stext as usize, etext as usize, Linear::new(offset, MemoryAttr::default().execute().readonly()), "text");
     ms.push(sdata as usize, edata as usize, Linear::new(offset, MemoryAttr::default()), "data");
