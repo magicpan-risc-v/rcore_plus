@@ -1,8 +1,8 @@
-# rCore labs
+# rCore Labs
 
 [![Build Status](https://travis-ci.org/oscourse-tsinghua/RustOS.svg?branch=lab8-rv32)](https://travis-ci.org/oscourse-tsinghua/RustOS)
 
-Rust version of THU [uCore OS  Labs](https://github.com/chyyuu/ucore_os_lab).
+Rust version of THU [uCore OS Labs](https://github.com/chyyuu/ucore_os_lab).
 
 Going to be the next generation teaching operating system.
 
@@ -18,7 +18,7 @@ Tested boards: QEMU
 
 ### Environment
 
-* [Rust](https://www.rust-lang.org) toolchain at nightly-2019-01-01
+* [Rust](https://www.rust-lang.org) toolchain at nightly-2019-02-16
 * Cargo tools: [cargo-xbuild](https://github.com/rust-osdev/cargo-xbuild)
 * [QEMU](https://www.qemu.org) >= 3.1.0
 * [RISCV64 GNU toolchain](https://www.sifive.com/boards) (for riscv32/64)
@@ -32,7 +32,7 @@ cargo install cargo-xbuild bootimage
 ```
 
 ```bash
-git clone https://github.com//oscourse-tsinghua/rcore_plus.git --recursive
+git clone https://github.com/oscourse-tsinghua/rcore_plus.git --recursive
 git checkout lab8-rv32
 git submodule update --init --recursive
 cd rcore_plus/riscv_pk

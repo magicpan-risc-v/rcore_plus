@@ -47,3 +47,8 @@ fn others_main() -> ! {
 
 global_asm!(include_str!("boot/entry.asm"));
 global_asm!(include_str!("boot/trap.asm"));
+
+#[no_mangle]
+pub extern fn abort() {
+    panic!("abort");
+}
