@@ -52,6 +52,13 @@ compiler_builtins = { git = "https://github.com/rust-lang-nursery/compiler-built
 3. cp -r ~/.cargo/git/checkouts/compiler-builtins-ec094dc45a0179c8/61a3c5a89ddf/ ~/.rustup/toolchains/nightly-2019-01-27-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/src/libcompiler_builtins/
 ```
 
+Q: when you update rust-toolchain to nightly-2019-02-16, you can not compile libcore, liballoc correctly. How to fix it?
+
+A: install rust-src, update/reinstall cargo-xbuild
+```
+rustup component add --toolchain nightly-2019-02-16 rust-src
+cargo install cargo-xbuild --force
+```
 ## History
 
 This is a project of THU courses:
