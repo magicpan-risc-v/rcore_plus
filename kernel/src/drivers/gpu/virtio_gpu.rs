@@ -12,6 +12,7 @@ use crate::arch::cpu;
 use crate::memory::active_table;
 use rcore_memory::paging::PageTable;
 use core::slice;
+use crate::arch::consts::{KERN_VA_BASE, MEMORY_OFFSET};
 use super::test::mandelbrot;
 
 const VIRTIO_GPU_EVENT_DISPLAY : u32 = 1 << 0;
@@ -247,7 +248,7 @@ fn setup_framebuffer(driver: &mut VirtIOGpu) {
         header: VirtIOGpuCtrlHdr::with_type(VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING),
         resource_id: VIRTIO_GPU_RESOURCE_ID,
         nr_entries: 1,
-        addr: frame_buffer as u64,
+        addr: (frame_buffer - KERN_VA_BASE + MEMORY_OFFSET) as u64,
         length: size,
         padding: 0
     };
