@@ -66,4 +66,4 @@ Hint：每个程序的文件名代表了这个题目的知识点。
 
 * Writing an OS in Rust：https://os.phil-opp.com
 
-  教你用Rust写x86_64 OS！
+  教你用Rust写 OS！
