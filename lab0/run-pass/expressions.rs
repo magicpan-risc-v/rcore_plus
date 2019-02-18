@@ -1,8 +1,8 @@
 // FIXME: Make me pass! Diff budget: 10 lines.
 // Do not `use` any items.
-
+use std::cmp::max;
 // Do not change the following two lines.
-#[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq,Ord,PartialOrd, PartialEq, Clone, Copy)]
 struct IntWrapper(isize);
 
 pub fn main() {

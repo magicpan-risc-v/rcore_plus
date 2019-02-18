@@ -7,10 +7,14 @@ enum MyEnum {
 }
 
 fn matcher(val: &MyEnum) -> &str {
-    match *val {
+    match val {
         MyEnum::A(string) => string.as_str(),
         MyEnum::B(string) => string.as_str()
     }
 }
 
-fn main() { }
+fn main() {
+//    let foo=MyEnum::A(String::from("test"));
+//    let boo=MyEnum::B(String::from("hello"));
+//    println!("{} {}",matcher(&foo), matcher(&boo));
+}

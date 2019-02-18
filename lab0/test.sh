@@ -2,7 +2,7 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-rustup override set nightly-2019-01-01
+# rustup override set nightly-2019-01-01
 
 function usage() {
   echo "Usage: $0 [-h, -v] [filter]"

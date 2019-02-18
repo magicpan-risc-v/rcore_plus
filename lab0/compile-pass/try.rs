@@ -15,7 +15,7 @@ fn do_b() -> Result<u32, ErrorB> {
     Err(ErrorB)
 }
 
-fn do_both() -> Result<(u16, u32), Error> {
+fn do_both() -> Result<(Result<u16, ErrorA>,Result<u32, ErrorB>), Error> {
     Ok((do_a(), do_b()))
 }
 
