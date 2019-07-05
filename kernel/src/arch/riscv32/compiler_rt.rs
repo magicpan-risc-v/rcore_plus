@@ -9,23 +9,22 @@ pub extern "C" fn abort() {
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_load_4(ptr : usize) -> u32 {
+pub extern "C" fn __atomic_load_4(ptr : *const u32) -> u32 {
     let temp = unsafe{ disable_and_store() };
-    let res = unsafe{ *(ptr as *const u32) };
+    let res = unsafe{ *ptr };
     unsafe{ restore(temp); }
     res
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_store_4(ptr : usize, val : u32) {
+pub extern "C" fn __atomic_store_4(ptr : *mut u32, val : u32) {
     let temp = unsafe{ disable_and_store() };
-    let real_ptr : *mut u32 = unsafe { ptr as *mut u32 };
-    unsafe { *real_ptr = val; }
+    unsafe { *ptr = val; }
     unsafe{ restore(temp); }
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_load_8(ptr : usize) -> u64 {
+pub extern "C" fn __atomic_load_8(ptr : *const u64) -> u64 {
     let temp = unsafe{ disable_and_store() };
     let res = unsafe{ *(ptr as *const u64) };
     unsafe{ restore(temp); }
@@ -33,66 +32,69 @@ pub extern "C" fn __atomic_load_8(ptr : usize) -> u64 {
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_store_8(ptr : usize, val : u64) {
+pub extern "C" fn __atomic_store_8(ptr : *mut u64, val : u64) {
     let temp = unsafe{ disable_and_store() };
-    let real_ptr : *mut u64 = unsafe { ptr as *mut u64 };
-    unsafe { *real_ptr = val; }
+    unsafe { *ptr = val; }
     unsafe{ restore(temp); }
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_fetch_sub_8(ptr : usize, val : u64) -> u64 {
+pub extern "C" fn __atomic_fetch_sub_8(ptr : *mut u64, val : u64) -> u64 {
     let temp = unsafe{ disable_and_store() };
-    let real_ptr : *mut u64 = unsafe { ptr as *mut u64 };
-    let res = unsafe { (*real_ptr) - val };
+    let origin_val = unsafe{ (*(ptr as *const u64)).clone() };
+    unsafe{
+        *(ptr) = origin_val - val;
+    }
     unsafe{ restore(temp); }
-    res
+    origin_val
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_fetch_add_8(ptr : usize, val : u64) -> u64 {
+pub extern "C" fn __atomic_fetch_add_8(ptr : *mut u64, val : u64) -> u64 {
     let temp = unsafe{ disable_and_store() };
-    let real_ptr : *mut u64 = unsafe { ptr as *mut u64 };
-    let res = unsafe { (*real_ptr) + val };
+    let origin_val = unsafe{ (*(ptr as *const u64)).clone() };
+    unsafe{
+        *(ptr) = origin_val + val;
+    }
     unsafe{ restore(temp); }
-    res
+    origin_val
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_compare_exchange_4(ptr : usize, expected : usize, desired : u32) -> bool {
+pub extern "C" fn __atomic_compare_exchange_4(ptr : *mut u32, expected : *mut u32, desired : u32) -> bool {
     let temp = unsafe{ disable_and_store() };
     let val = unsafe{ *(ptr as *const u32) };
     let expect = unsafe{ *(expected as *const u32) };
     let ret = ( val == expect );
     if !ret {
         unsafe {
-            *(expected as *mut u32) = expect;
+            *expected = val;
         }
         unsafe{ restore(temp); }
         return ret;
     }
     unsafe {
-        *(ptr as *mut u32) = desired;
+        *ptr = desired;
     }
     unsafe{ restore(temp); }
     return ret;
 }
 
 #[no_mangle]
-pub extern "C" fn __atomic_compare_exchange_8(ptr : usize, expected : usize, desired : u64) -> bool {
+pub extern "C" fn __atomic_compare_exchange_8(ptr : *mut u64, expected : *mut u64, desired : u64) -> bool {
     let temp = unsafe{ disable_and_store() };
     let val = unsafe{ *(ptr as *const u64) };
     let expect = unsafe{ *(expected as *const u64) };
     let ret = ( val == expect );
     if !ret {
         unsafe {
-            *(expected as *mut u64) = expect;
+            *expected = val;
         }
         unsafe{ restore(temp); }
         return ret;
     }
     unsafe {
-        *(ptr as *mut u64) = desired;
+        *ptr = desired;
     }
     unsafe{ restore(temp); }
     return ret;
