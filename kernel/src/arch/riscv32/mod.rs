@@ -29,7 +29,9 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
     let mut device_tree_vaddr = phys_to_virt(device_tree_paddr);
 
     unsafe {
+        info!("hhere {}", 0);
         cpu::set_cpu_id(hartid);
+        info!("hhere {}", 1);
     }
 
     #[cfg(feature = "board_rocket_chip")]
@@ -41,15 +43,15 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
         device_tree_vaddr = _dtb_start as usize;
     }
 
-    if hartid != BOOT_HART_ID {
-        while !AP_CAN_INIT.load(Ordering::Relaxed) {}
-        println!(
-            "Hello RISCV! in hart {}, device tree @ {:#x}",
-            hartid, device_tree_vaddr
-        );
-        others_main();
-        //other_main -> !
-    }
+    //if hartid != BOOT_HART_ID {
+        //while !AP_CAN_INIT.load(Ordering::Relaxed) {}
+        //println!(
+            //"Hello RISCV! in hart {}, device tree @ {:#x}",
+            //hartid, device_tree_vaddr
+        //);
+        //others_main();
+        ////other_main -> !
+    //}
 
     unsafe {
         memory::clear_bss();
@@ -60,10 +62,15 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
         hartid, device_tree_vaddr
     );
 
+    info!("here {}", 0);
     crate::logging::init();
+    info!("here {}", 1);
     interrupt::init();
+    info!("here {}", 2);
     memory::init(device_tree_vaddr);
+    info!("here {}", 3);
     timer::init();
+    info!("here {}", 4);
     // FIXME: init driver on u540
     #[cfg(not(any(feature = "board_u540")))]
     crate::drivers::init(device_tree_vaddr);
@@ -72,9 +79,10 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
         board::enable_serial_interrupt();
         board::init_external_interrupt();
     }
+    info!("here");
     crate::process::init();
 
-    AP_CAN_INIT.store(true, Ordering::Relaxed);
+    //AP_CAN_INIT.store(true, Ordering::Relaxed);
     crate::kmain();
 }
 
