@@ -81,6 +81,7 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
     }
     info!("here");
     crate::process::init();
+    info!("here last");
 
     //AP_CAN_INIT.store(true, Ordering::Relaxed);
     crate::kmain();

@@ -13,11 +13,13 @@ pub fn init() {
     let scheduler = scheduler::RRScheduler::new(5);
     let manager = Arc::new(ThreadPool::new(scheduler, MAX_PROCESS_NUM));
 
+    info!("is here {}", 0);
     unsafe {
         for cpu_id in 0..MAX_CPU_NUM {
             PROCESSORS[cpu_id].init(cpu_id, Thread::new_init(), manager.clone());
         }
     }
+    info!("is here {}", 1);
 
     crate::shell::add_user_shell();
 
