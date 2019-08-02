@@ -254,7 +254,8 @@ endif
 endif
 
 gdb := $(prefix)gdb
-objdump := cargo objdump -- -arch-name=$(subst _,-,$(arch))
+#objdump := cargo objdump -- -arch-name=$(subst _,-,$(arch))
+objdump := $(prefix)objdump
 objcopy := cargo objcopy -- --binary-architecture=$(subst _,-,$(arch))
 strip := cargo strip --
 dtc := dtc

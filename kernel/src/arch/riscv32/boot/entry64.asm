@@ -7,10 +7,21 @@ _start:
 
     # 1. set sp
     # sp = bootstack + (hartid + 1) * 0x10000
-    add     t0, a0, 1
-    slli    t0, t0, 14
-    lui     sp, %hi(bootstack)
-    add     sp, sp, t0
+    lui     t0, %hi(bootstacktop)
+    addi    t0, t0, %lo(bootstacktop)
+	mv		sp, t0
+
+	# set up csr
+	csrwi mie, 0      # mie
+	csrwi mip, 0      # mip
+    csrwi mscratch, 0      # mscratch
+	li	  t0, -1
+	csrw  medeleg, t0      # medeleg
+	csrw  mideleg, t0      # mideleg
+	csrw  mcounteren, t0      # mcounteren
+	csrw  scounteren, t0      # scounteren
+    li	  t0, 1 << 11      # MPP = S
+    csrw  mstatus, t0      # mstatus
 
     # 2. enable paging
     # satp = (8 << 60) | PPN(boot_page_table_sv39)
@@ -26,7 +37,8 @@ _start:
     # 3. jump to rust_main (absolute address)
     lui     t0, %hi(rust_main)
     addi    t0, t0, %lo(rust_main)
-    jr      t0
+    csrw  mepc, t0      # mepc
+	mret
 
     .section .bss.stack
     .align 12   # page align
@@ -41,7 +53,7 @@ bootstacktop:
 boot_page_table_sv39:
     # 0x00000000_80000000 -> 0x80000000 (1G)
     # 0xffffffff_c0000000 -> 0x80000000 (1G)
-    .quad 0
+    .quad 0xcf # for serial.	0x10000000 -> 0x10000000
     .quad 0
     .quad (0x80000 << 10) | 0xcf # VRWXAD
     .zero 8 * 508
