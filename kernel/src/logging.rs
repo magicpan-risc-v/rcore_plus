@@ -7,9 +7,9 @@ use crate::processor;
 use crate::sync::SpinNoIrqLock as Mutex;
 use crate::util::color::ConsoleColor;
 
-//lazy_static! {
-    //static ref LOG_LOCK: Mutex<()> = Mutex::new(());
-//}
+lazy_static! {
+    static ref LOG_LOCK: Mutex<()> = Mutex::new(());
+}
 
 pub fn init() {
     static LOGGER: SimpleLogger = SimpleLogger;
@@ -47,13 +47,13 @@ macro_rules! with_color {
 
 fn print_in_color(args: fmt::Arguments, color: ConsoleColor) {
     use crate::arch::io;
-    //let _guard = LOG_LOCK.lock();
+    let _guard = LOG_LOCK.lock();
     io::putfmt(with_color!(args, color));
 }
 
 pub fn print(args: fmt::Arguments) {
     use crate::arch::io;
-    //let _guard = LOG_LOCK.lock();
+    let _guard = LOG_LOCK.lock();
     io::putfmt(args);
 }
 

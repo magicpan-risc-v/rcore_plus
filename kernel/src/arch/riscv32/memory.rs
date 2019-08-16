@@ -15,9 +15,12 @@ pub fn init(dtb: usize) {
         sstatus::set_sum();
     }
     // initialize heap and Frame allocator
+    info!("init frame allocator");
     init_frame_allocator();
+    info!("init heap");
     init_heap();
-    remap_the_kernel(dtb);
+    //info!("remap kernel");
+    //remap_the_kernel(dtb);
 }
 
 pub fn init_other() {
@@ -42,8 +45,10 @@ fn init_frame_allocator() {
 
     /// Transform memory area `[start, end)` to integer range for `FrameAllocator`
     fn to_range(start: usize, end: usize) -> Range<usize> {
+        warn!("page_start ");
         let page_start = (start - MEMORY_OFFSET) / PAGE_SIZE;
         let page_end = (end - MEMORY_OFFSET - 1) / PAGE_SIZE + 1;
+        warn!("page_start : {:#x}, page_end : {:#x}", page_start, page_end);
         assert!(page_start < page_end, "illegal range for frame allocator");
         page_start..page_end
     }
@@ -52,6 +57,7 @@ fn init_frame_allocator() {
 /// Remap the kernel memory address with 4K page recorded in p1 page table
 fn remap_the_kernel(_dtb: usize) {
     let mut ms = MemorySet::new();
+    info!("remap kernel middle");
     unsafe {
         ms.activate();
     }
@@ -69,11 +75,13 @@ static mut SATP: usize = 0;
 pub unsafe fn clear_bss() {
     let start = sbss as usize;
     let end = ebss as usize;
-    println!("bss_start : {}, bss_end : {}", start, end);
+    println!("bss_start : {:#x}, bss_end : {:#x}", start, end);
     let step = core::mem::size_of::<usize>();
+    println!("step : {:#x}", step);
     for i in (start..end).step_by(step) {
         (i as *mut usize).write(0);
     }
+    println!("bss_start : {:#x}, bss_end : {:#x}", start, end);
 }
 
 // Symbols provided by linker script

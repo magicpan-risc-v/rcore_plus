@@ -31,13 +31,12 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
         //cpu::set_cpu_id(hartid);
     //}
 
-    unsafe {
-        memory::clear_bss();
-    }
+    //unsafe {
+        //memory::clear_bss();
+    //}
 
     crate::logging::init();
-    println!("loggin init finish {}", 1);
-    io::putchar(81u8);
+    println!("loggin init finish {:#x}", 1);
     info!("hello world");
     warn!("hello world");
     error!("hello world");
@@ -50,10 +49,8 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
 
     info!("hello world 2");
     
-    //timer::init();
+    timer::init();
 
-    //io::putchar(72u8);
-    
     //crate::process::init();
 
     //AP_CAN_INIT.store(true, Ordering::Relaxed);

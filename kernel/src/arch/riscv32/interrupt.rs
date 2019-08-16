@@ -20,9 +20,9 @@ pub fn init() {
         // Enable IPI
         sie::set_ssoft();
         // Enable external interrupt
-        if super::cpu::id() == super::BOOT_HART_ID {
-            sie::set_sext();
-        }
+        //if super::cpu::id() == super::BOOT_HART_ID {
+            //sie::set_sext();
+        //}
     }
     info!("interrupt: init end");
 }
@@ -55,7 +55,7 @@ pub unsafe fn restore(flags: usize) {
 #[no_mangle]
 pub extern "C" fn rust_trap(tf: &mut TrapFrame) {
     use self::scause::{Exception as E, Interrupt as I, Trap};
-    trace!(
+    info!(
         "Interrupt @ CPU{}: {:?} ",
         super::cpu::id(),
         tf.scause.cause()

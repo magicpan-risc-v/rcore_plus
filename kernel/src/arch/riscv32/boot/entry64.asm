@@ -27,6 +27,8 @@ _start:
 	csrw  mcounteren, t0      # mcounteren
 	csrw  scounteren, t0      # scounteren
     li	  t0, 1 << 11      # MPP = S
+	li    t1, 1 << 1	   # SIE = 1
+	add   t0, t0, t1
     csrw  mstatus, t0      # mstatus
 
     # 2. enable paging
