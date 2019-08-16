@@ -26,56 +26,40 @@ use log::*;
 
 #[no_mangle]
 pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
-    let mut device_tree_vaddr = phys_to_virt(device_tree_paddr);
 
-    unsafe {
-        cpu::set_cpu_id(hartid);
-    }
-
-    #[cfg(feature = "board_rocket_chip")]
-    {
-        extern "C" {
-            fn _dtb_start();
-            fn _dtb_end();
-        }
-        device_tree_vaddr = _dtb_start as usize;
-    }
-
-    if hartid != BOOT_HART_ID {
-        while !AP_CAN_INIT.load(Ordering::Relaxed) {}
-        println!(
-            "Hello RISCV! in hart {}, device tree @ {:#x}",
-            hartid, device_tree_vaddr
-        );
-        others_main();
-        //other_main -> !
-    }
+    //unsafe {
+        //cpu::set_cpu_id(hartid);
+    //}
 
     unsafe {
         memory::clear_bss();
     }
 
-    println!(
-        "Hello RISCV! in hart {}, device tree @ {:#x}",
-        hartid, device_tree_vaddr
-    );
-
     crate::logging::init();
-    interrupt::init();
-    memory::init(device_tree_vaddr);
-    timer::init();
-    // FIXME: init driver on u540
-    #[cfg(not(any(feature = "board_u540")))]
-    crate::drivers::init(device_tree_vaddr);
-    #[cfg(not(feature = "board_k210"))]
-    unsafe {
-        board::enable_serial_interrupt();
-        board::init_external_interrupt();
-    }
-    crate::process::init();
+    println!("loggin init finish {}", 1);
+    io::putchar(81u8);
+    info!("hello world");
+    warn!("hello world");
+    error!("hello world");
 
-    AP_CAN_INIT.store(true, Ordering::Relaxed);
-    crate::kmain();
+    interrupt::init();
+
+    info!("hello world 1");
+    
+    memory::init(0);
+
+    info!("hello world 2");
+    
+    //timer::init();
+
+    //io::putchar(72u8);
+    
+    //crate::process::init();
+
+    //AP_CAN_INIT.store(true, Ordering::Relaxed);
+    //crate::kmain();
+
+     loop{}
 }
 
 fn others_main() -> ! {

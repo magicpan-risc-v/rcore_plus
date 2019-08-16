@@ -1,6 +1,7 @@
 use super::sbi;
 use core::fmt::{Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
+use crate::util::{read, write};
 
 struct SerialPort;
 
@@ -19,34 +20,20 @@ impl Write for SerialPort {
     }
 }
 
-fn putchar(c: u8) {
-    unsafe{
-        while read_volatile(STATUS) & CAN_WRITE == 0 {}
-        write_volatile(DATA, c as u8);
-    }
+pub fn putchar(c: u8) {
+    write(0x1234_5678_9abc_def0, c);
 }
 
 pub fn getchar() -> char {
-    let c = unsafe {
-        while read_volatile(STATUS) & CAN_READ == 0 {}
-        read_volatile(DATA)
-    };
-
-    match c {
-        255 => '\0',   // null
-        c => c as char,
-    }
+    read::<u8>(0x1234_5678_9abc_def0) as char
 }
 
 pub fn getchar_option() -> Option<char> {
-    return if unsafe { read_volatile(STATUS) } & CAN_READ == 0 {
-        None
-    }else{
-        Some(unsafe{ read_volatile(DATA) } as char)
-    };
+    Some(getchar())
 }
 
 pub fn putfmt(fmt: Arguments) {
+    putchar(80u8);
     SerialPort.write_fmt(fmt).unwrap();
 }
 

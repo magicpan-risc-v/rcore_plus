@@ -43,7 +43,7 @@ pub type FrameAlloc = bitmap_allocator::BitAlloc256M;
     ),
     not(feature = "board_k210")
 ))]
-pub type FrameAlloc = bitmap_allocator::BitAlloc1M;
+pub type FrameAlloc = bitmap_allocator::BitAlloc4K;
 
 // K210 has 8M memory
 #[cfg(feature = "board_k210")]

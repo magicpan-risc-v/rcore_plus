@@ -111,7 +111,13 @@ impl<T: ?Sized, S: MutexSupport> Mutex<T, S> {
             }
         }
         let cid = crate::arch::cpu::id();
+        unsafe {
+            asm!("nop" :::: "volatile");
+        }
         let tid = processor().tid_option().unwrap_or(0);
+        unsafe {
+            asm!("nop" :::: "volatile");
+        }
         unsafe { self.user.get().write((cid, tid)) };
     }
 

@@ -7,9 +7,9 @@ use crate::processor;
 use crate::sync::SpinNoIrqLock as Mutex;
 use crate::util::color::ConsoleColor;
 
-lazy_static! {
-    static ref LOG_LOCK: Mutex<()> = Mutex::new(());
-}
+//lazy_static! {
+    //static ref LOG_LOCK: Mutex<()> = Mutex::new(());
+//}
 
 pub fn init() {
     static LOGGER: SimpleLogger = SimpleLogger;
@@ -47,13 +47,13 @@ macro_rules! with_color {
 
 fn print_in_color(args: fmt::Arguments, color: ConsoleColor) {
     use crate::arch::io;
-    let _guard = LOG_LOCK.lock();
+    //let _guard = LOG_LOCK.lock();
     io::putfmt(with_color!(args, color));
 }
 
 pub fn print(args: fmt::Arguments) {
     use crate::arch::io;
-    let _guard = LOG_LOCK.lock();
+    //let _guard = LOG_LOCK.lock();
     io::putfmt(args);
 }
 
@@ -64,20 +64,22 @@ impl Log for SimpleLogger {
         true
     }
     fn log(&self, record: &Record) {
+        use crate::arch::io;
         if !self.enabled(record.metadata()) {
             return;
         }
-        if let Some(tid) = processor().tid_option() {
-            print_in_color(
-                format_args!("[{:>5}][{}] {}\n", record.level(), tid, record.args()),
-                ConsoleColor::from(record.level()),
-            );
-        } else {
+        //if let Some(tid) = processor().tid_option() {
+            //io::putchar(81u8);
+            //print_in_color(
+                //format_args!("[{:>5}][{}] {}\n", record.level(), tid, record.args()),
+                //ConsoleColor::from(record.level()),
+            //);
+        //} else {
             print_in_color(
                 format_args!("[{:>5}][-] {}\n", record.level(), record.args()),
                 ConsoleColor::from(record.level()),
             );
-        }
+        //}
     }
     fn flush(&self) {}
 }
