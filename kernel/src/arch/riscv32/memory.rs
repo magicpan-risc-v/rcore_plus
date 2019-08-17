@@ -20,7 +20,7 @@ pub fn init(dtb: usize) {
     info!("init heap");
     init_heap();
     //info!("remap kernel");
-    //remap_the_kernel(dtb);
+    remap_the_kernel(dtb);
 }
 
 pub fn init_other() {

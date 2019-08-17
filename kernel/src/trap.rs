@@ -16,8 +16,8 @@ pub fn timer() {
         }
         info!("it is really 0 CPU");
     }
-    info!("now we can do more");
-    //processor().tick();
+    //info!("now we can do more");
+    processor().tick();
 }
 
 pub fn error(tf: &TrapFrame) -> ! {

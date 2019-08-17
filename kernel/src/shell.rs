@@ -17,29 +17,31 @@ pub fn add_user_shell() {
     //        let init_shell="/bin/busybox"; // from alpine linux
     //
     //    #[cfg(not(target_arch = "x86_64"))]
-    #[cfg(not(feature = "board_rocket_chip"))]
-    let init_shell = "/busybox"; //from docker-library
+    //#[cfg(not(feature = "board_rocket_chip"))]
+    //let init_shell = "/busybox"; //from docker-library
 
-    // fd is not available on rocket chip
-    #[cfg(feature = "board_rocket_chip")]
-    let init_shell = "/rust/sh";
+    //// fd is not available on rocket chip
+    ////#[cfg(feature = "board_rocket_chip")]
+    //let init_shell = "/rust/sh";
 
-    #[cfg(target_arch = "x86_64")]
-    let init_envs =
-        vec!["PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/x86_64-alpine-linux-musl/bin".into()];
+    //#[cfg(target_arch = "x86_64")]
+    //let init_envs =
+        //vec!["PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/x86_64-alpine-linux-musl/bin".into()];
 
-    #[cfg(not(target_arch = "x86_64"))]
-    let init_envs = Vec::new();
+    //#[cfg(not(target_arch = "x86_64"))]
+    //let init_envs = Vec::new();
 
-    let init_args = vec!["busybox".into(), "ash".into()];
+    //let init_args = vec!["busybox".into(), "ash".into()];
 
-    if let Ok(inode) = ROOT_INODE.lookup(init_shell) {
-        processor()
-            .manager()
-            .add(Thread::new_user(&inode, init_shell, init_args, init_envs));
-    } else {
-        processor().manager().add(Thread::new_kernel(shell, 0));
-    }
+    //if let Ok(inode) = ROOT_INODE.lookup(init_shell) {
+        //processor()
+            //.manager()
+            //.add(Thread::new_user(&inode, init_shell, init_args, init_envs));
+    //} else {
+        //processor().manager().add(Thread::new_kernel(shell, 0));
+    //}
+
+    processor().manager().add(Thread::new_kernel(shell, 0));
 }
 
 #[cfg(feature = "run_cmdline")]
@@ -58,26 +60,27 @@ pub fn add_user_shell() {
 pub extern "C" fn shell(_arg: usize) -> ! {
     let files = ROOT_INODE.list().unwrap();
     println!("Available programs: {:?}", files);
-    let mut history = Vec::new();
+    println!("Weclome to shell");
+    //let mut history = Vec::new();
 
     loop {
         print!(">> ");
-        let cmd = get_line(&mut history);
-        if cmd == "" {
-            continue;
-        }
-        let name = cmd.trim().split(' ').next().unwrap();
-        if let Ok(inode) = ROOT_INODE.lookup(name) {
-            let _tid = processor().manager().add(Thread::new_user(
-                &inode,
-                &cmd,
-                cmd.split(' ').map(|s| s.into()).collect(),
-                Vec::new(),
-            ));
-        // TODO: wait until process exits, or use user land shell completely
-        } else {
-            println!("Program not exist");
-        }
+        //let cmd = get_line(&mut history);
+        //if cmd == "" {
+            //continue;
+        //}
+        //let name = cmd.trim().split(' ').next().unwrap();
+        //if let Ok(inode) = ROOT_INODE.lookup(name) {
+            //let _tid = processor().manager().add(Thread::new_user(
+                //&inode,
+                //&cmd,
+                //cmd.split(' ').map(|s| s.into()).collect(),
+                //Vec::new(),
+            //));
+        //// TODO: wait until process exits, or use user land shell completely
+        //} else {
+            //println!("Program not exist");
+        //}
     }
 }
 

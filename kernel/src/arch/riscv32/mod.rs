@@ -53,10 +53,10 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
 
     info!("timer is ok");
 
-    //crate::process::init();
+    crate::process::init();
 
-    //AP_CAN_INIT.store(true, Ordering::Relaxed);
-    //crate::kmain();
+    AP_CAN_INIT.store(true, Ordering::Relaxed);
+    crate::kmain();
 
     loop{
         info!("all init over");
