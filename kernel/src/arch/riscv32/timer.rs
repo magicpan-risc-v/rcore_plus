@@ -4,8 +4,7 @@ use riscv::register::*;
 
 #[cfg(target_pointer_width = "64")]
 pub fn get_cycle() -> u64 {
-    //time::read() as u64
-    1
+    time::read() as u64
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -38,6 +37,9 @@ pub fn init() {
 /// Set the next timer interrupt
 pub fn set_next() {
     // 100Hz @ QEMU
-    //let timebase = 250000;
+    let timebase = 250000;
     //sbi::set_timer(get_cycle() + timebase);
+    unsafe{
+        asm!("csrw 0x321, $0;" :: "r"(get_cycle() + timebase) :: "volatile");
+    }
 }

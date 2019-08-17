@@ -27,9 +27,9 @@ use log::*;
 #[no_mangle]
 pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
 
-    //unsafe {
-        //cpu::set_cpu_id(hartid);
-    //}
+    unsafe {
+        cpu::set_cpu_id(0);
+    }
 
     //unsafe {
         //memory::clear_bss();
@@ -51,12 +51,16 @@ pub extern "C" fn rust_main(hartid: usize, device_tree_paddr: usize) -> ! {
     
     timer::init();
 
+    info!("timer is ok");
+
     //crate::process::init();
 
     //AP_CAN_INIT.store(true, Ordering::Relaxed);
     //crate::kmain();
 
-     loop{}
+    loop{
+        info!("all init over");
+    }
 }
 
 fn others_main() -> ! {

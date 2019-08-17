@@ -33,7 +33,6 @@ pub fn getchar_option() -> Option<char> {
 }
 
 pub fn putfmt(fmt: Arguments) {
-    putchar(80u8);
     SerialPort.write_fmt(fmt).unwrap();
 }
 

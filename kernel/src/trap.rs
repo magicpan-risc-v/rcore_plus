@@ -14,8 +14,10 @@ pub fn timer() {
         unsafe {
             TICK += 1;
         }
+        info!("it is really 0 CPU");
     }
-    processor().tick();
+    info!("now we can do more");
+    //processor().tick();
 }
 
 pub fn error(tf: &TrapFrame) -> ! {

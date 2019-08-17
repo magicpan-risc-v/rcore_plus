@@ -2,6 +2,7 @@ pub use self::context::*;
 use crate::drivers::DRIVERS;
 use log::*;
 use riscv::register::*;
+use core::mem::size_of;
 
 #[path = "context.rs"]
 mod context;
@@ -55,6 +56,9 @@ pub unsafe fn restore(flags: usize) {
 #[no_mangle]
 pub extern "C" fn rust_trap(tf: &mut TrapFrame) {
     use self::scause::{Exception as E, Interrupt as I, Trap};
+    info!("size_of::<usize> is {:#X}", size_of::<usize>());
+    info!("bits is {:#X}", tf.scause.bits());
+    info!("code is {:#X}", tf.scause.code());
     info!(
         "Interrupt @ CPU{}: {:?} ",
         super::cpu::id(),
@@ -70,7 +74,7 @@ pub extern "C" fn rust_trap(tf: &mut TrapFrame) {
         Trap::Exception(E::InstructionPageFault) => page_fault(tf),
         _ => crate::trap::error(tf),
     }
-    trace!("Interrupt end");
+    info!("Interrupt end");
 }
 
 fn external() {
